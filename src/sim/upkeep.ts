@@ -6,7 +6,7 @@ import {
 } from '../data/upkeep';
 import { addMessage } from './messages';
 import type { GameState, Piece } from './state';
-import type { Issue } from './utilities';
+import { runtimeOf, type Issue } from './utilities';
 
 const DAY_SECONDS = 86400;
 
@@ -40,7 +40,7 @@ export function outputFactor(piece: Piece): number {
 /** Wear everything down a little for the game time that passed. */
 export function stepUpkeep(state: GameState, worldDt: number): void {
   const days = worldDt / DAY_SECONDS;
-  if (days <= 0) return;
+  if (days <= 0 || runtimeOf(state).cheats.noWear) return;
   for (const p of state.pieces) {
     if (p.progress < 1) continue;
     const spec = upkeepOf(p.type);
@@ -104,6 +104,7 @@ function materialsWorth(type: string, dollars: number): Record<string, number> {
 /** What is missing to do a job, as a sentence, or null if everything is at hand. */
 function shortage(state: GameState, items: Record<string, number>, tools: string[]): string | null {
   if (state.at !== 'base') return 'Travel to your base first.';
+  if (runtimeOf(state).cheats.freeWork) return null;
   for (const tool of tools) {
     if ((state.storage[tool] ?? 0) < 1) return `You need a ${itemById(tool).name.toLowerCase()} in storage.`;
   }
@@ -115,6 +116,7 @@ function shortage(state: GameState, items: Record<string, number>, tools: string
 }
 
 function spend(state: GameState, items: Record<string, number>): void {
+  if (runtimeOf(state).cheats.freeWork) return;
   for (const [item, qty] of Object.entries(items)) {
     state.storage[item] = (state.storage[item] ?? 0) - qty;
     if (state.storage[item] <= 0) delete state.storage[item];

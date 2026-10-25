@@ -533,3 +533,6 @@ input.qty::-webkit-inner-spin-button { display: none; }
 .place-panel .btns.piece-row { display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px; }
 .place-panel .btns.piece-row .btn { flex: 1 1 auto; justify-content: center; margin: 0; width: auto; }
 .piece-job .dim { line-height: 1.3; }
+
+/* ---- Cheat tag in the top bar */
+.cheat-tag { background: linear-gradient(180deg, #c9592e, #8a3217); color: #fff; letter-spacing: .12em; }

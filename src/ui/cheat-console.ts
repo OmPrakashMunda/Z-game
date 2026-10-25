@@ -44,7 +44,7 @@ export class CheatConsole {
 
   show(): void {
     this.open = true;
-    this.result.textContent = 'Codes: buildnow (finish all building), money (+$500,000), woodsbase (a finished base in the woods)';
+    this.result.textContent = 'Type HELP for the list of cheat codes. They last until you leave the game.';
     this.form.style.display = 'block';
     this.input.value = '';
     // Wait a moment so the key that opened the box is not typed into it

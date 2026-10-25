@@ -176,6 +176,7 @@ export class Traffic {
   private readonly intersections: Intersection[] = [];
   private clock = 0;
   private enabled = true;
+  private carsHidden = false;
 
   constructor(scene: THREE.Scene, city: City) {
     scene.add(this.group);
@@ -258,6 +259,12 @@ export class Traffic {
     }
   }
 
+  /** Hide or show every car (a cheat). The traffic lights stay. */
+  setCarsHidden(hidden: boolean): void {
+    this.carsHidden = hidden;
+    for (const lane of this.lanes) for (const car of lane.cars) car.group.visible = !hidden;
+  }
+
   private spawn(lane: Lane, p: number, instant = false): void {
     const kinds: VehicleKind[] = ['sedan', 'sedan', 'hatch', 'hatch', 'van', 'pickup'];
     const kind = kinds[Math.floor(Math.random() * kinds.length)];
@@ -265,6 +272,7 @@ export class Traffic {
     // Keep clear of cars already there
     for (const c of lane.cars) if (Math.abs(c.p - p) < (c.length + length) / 2 + 5) return;
     const group = makeVehicle(kind, COLORS[Math.floor(Math.random() * COLORS.length)]);
+    group.visible = !this.carsHidden;
     const beam = new THREE.Mesh(beamGeo, beamMat);
     beam.rotation.x = -Math.PI / 2; // lies flat; the bright end of the texture is nearest the car
     beam.position.set(0, 0.12, length / 2 + 4.2);
@@ -306,6 +314,13 @@ export class Traffic {
   /** Every car's id, position and speed (for tests). */
   get snapshot(): Array<{ id: number; x: number; z: number; speed: number }> {
     return this.lanes.flatMap((l) => l.cars.map((c) => ({ id: c.id, x: c.group.position.x, z: c.group.position.z, speed: c.speed })));
+  }
+
+  /** Cars that are drawn right now (none while the NOCARS cheat is on). */
+  get visibleCarCount(): number {
+    let n = 0;
+    for (const lane of this.lanes) for (const car of lane.cars) if (car.group.visible) n++;
+    return n;
   }
 
   get carCount(): number {

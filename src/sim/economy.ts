@@ -3,6 +3,7 @@ import { CATEGORIES, itemById } from '../data/items';
 import { ONLINE_STORE_ID, STORES, storeById, storeInfo, type StoreId } from '../data/stores';
 import { addMessage } from './messages';
 import type { GameState, Order } from './state';
+import { runtimeOf } from './utilities';
 
 export type Cart = Record<string, number>;
 
@@ -69,6 +70,7 @@ export interface Quote {
 }
 
 export function quote(state: GameState, storeId: string, cart: Cart): Quote {
+  if (runtimeOf(state).cheats.freeShop) return { subtotal: 0, total: 0 };
   let subtotal = 0;
   for (const [itemId, qty] of Object.entries(cart)) {
     if (qty > 0) subtotal += qty * itemPrice(storeId, itemId, state.worldSeconds);

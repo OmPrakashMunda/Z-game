@@ -27,6 +27,7 @@ import {
 import { expandPlot, ownedRect, plotOf, stripFor, type Side } from './sim/land';
 import { grantFunds, placeOrder, returnItems, SANDBOX_FUNDS, type Cart } from './sim/economy';
 import { buildPlan, planBase } from './sim/architect';
+import { activeCheats, resetCheatSession, runCheatCode, type WeatherMode } from './cheats';
 import { finishAllConstruction, movePiece, relocationProblem, rotatePiece } from './sim/build';
 import { cleanPiece, conditionIssue, repairPiece, upgradePiece } from './sim/upkeep';
 import { buyPlot } from './sim/realty';
@@ -244,6 +245,8 @@ window.addEventListener('pagehide', persistOnLeave);
 
 async function showTitle(): Promise<void> {
   screen = 'title';
+  resetCheatSession(cheatPictureHost);
+  ui.setCheats([]);
   closeAllViews();
   ui.setHudVisible(false);
   gfx.setMarkers(null, null);
@@ -277,6 +280,8 @@ async function showTitle(): Promise<void> {
 }
 
 function beginGame(next: GameState, isNew: boolean): void {
+  resetCheatSession(cheatPictureHost);
+  ui.setCheats([]);
   state = next;
   state.at = state.at === 'base' && !state.plotId ? 'motel' : state.at;
   deathShown = false;
@@ -706,31 +711,54 @@ function toggleUtilityView(): void {
   ui.setLinesActive(gfx.utilityViewOn);
 }
 
+/** The weather cheats act on the picture only. */
+function setCheatWeather(mode: WeatherMode): void {
+  gfx.atmosphere.setWeather(mode === 'normal');
+  gfx.atmosphere.forceRain(mode === 'always' ? 0.9 : 0);
+}
+
+const cheatPictureHost = { setWeather: setCheatWeather, setCarsHidden: (hidden: boolean) => gfx.traffic?.setCarsHidden(hidden) };
+
+/** What the world should look like right now: the real time, or the hour a cheat has locked it to. */
+function visualSeconds(s: GameState): number {
+  const lock = runtimeOf(s).cheats.hourLock;
+  return lock === null ? s.worldSeconds : worldSecondsAt(dayOf(s.worldSeconds), lock);
+}
+
 /** Run a typed cheat code. Returns the line to show under the box. */
 function runCheat(raw: string): string {
   if (!state || screen !== 'play') return '';
-  const code = raw.trim().toLowerCase();
-  switch (code) {
-    case 'buildnow': {
-      const n = finishAllConstruction(state);
-      if (n === 0) return 'Nothing is being built right now.';
+  const host = {
+    state,
+    ...cheatPictureHost,
+    changed: () => {
+      if (!state) return;
       gfx.syncPieces(state.pieces, gridOf(state));
+      refreshSurvival();
+      refreshPiecePanel();
+      ui.setCheats(activeCheats(state));
+      schedulePersist();
+    },
+    addFunds: () => {
+      handleFunds();
+      return `Done. ${money(SANDBOX_FUNDS)} added.`;
+    },
+    buildWoodsBase,
+    finishAll: () => {
+      const n = finishAllConstruction(state!);
+      if (n === 0) return 'Nothing is being built right now.';
+      gfx.syncPieces(state!.pieces, gridOf(state!));
       refreshSurvival();
       schedulePersist();
       audio.done();
       ui.toast(`Cheat: ${n} piece${n === 1 ? '' : 's'} finished at once.`, 'info');
       return `Done. ${n} piece${n === 1 ? '' : 's'} finished.`;
-    }
-    case 'woodsbase':
-      return buildWoodsBase();
-    case 'money':
-      handleFunds();
-      return `Done. ${money(SANDBOX_FUNDS)} added.`;
-    default:
-      return `Unknown code "${raw.trim()}". Try: buildnow, money, woodsbase`;
-  }
+    },
+  };
+  const result = runCheatCode(raw, host);
+  ui.setCheats(activeCheats(state));
+  return result;
 }
-
 function handleFunds(): void {
   if (!state) return;
   grantFunds(state);
@@ -1315,7 +1343,7 @@ function frame(now: number): void {
           break;
         }
       } else {
-        stepSim(state, balance.simStep, balance.simStep * config.timeScale * effectiveSpeed());
+        if (!runtimeOf(state).cheats.freeze) stepSim(state, balance.simStep, balance.simStep * config.timeScale * effectiveSpeed());
       }
     }
 
@@ -1344,6 +1372,7 @@ function frame(now: number): void {
       drawer.refresh(state);
       if (placePanel.isOpen) refreshPlacePanel();
       if (piecePanel.isOpen) refreshPiecePanel();
+      ui.setCheats(activeCheats(state));
       // Keep structures that are being built growing, and the build bar in step with deliveries
       gfx.syncPieces(state.pieces, gridOf(state));
       if (build) refreshBuildBar();
@@ -1370,7 +1399,7 @@ function frame(now: number): void {
       );
     }
     const unread = state.messages.filter((m) => m.id > seenMsgId && m.kind !== 'order').length;
-    gfx.render(screen === 'play' ? renderDt : 0, state.worldSeconds);
+    gfx.render(screen === 'play' ? renderDt : 0, visualSeconds(state));
     const day = dayOf(state.worldSeconds);
     ui.updateHud({
       day,
@@ -1529,6 +1558,7 @@ if (import.meta.env.DEV) {
       const t = gfx.traffic;
       return {
         cars: t?.carCount ?? 0,
+        visibleCars: t?.visibleCarCount ?? 0,
         snapshot: t?.snapshot ?? [],
         headlights: headlightMat.emissiveIntensity,
         stopped: t?.stoppedCount ?? 0,

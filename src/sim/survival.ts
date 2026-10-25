@@ -126,6 +126,11 @@ export function flushSurvival(state: GameState): void {
   while (done < total - 1e-6 && !dead()) {
     const dt = Math.min(SURVIVAL.chunkSeconds, total - done);
     tick(state, rt, start + done + dt / 2, dt);
+    if (rt.cheats.godMode) {
+      state.player.health = 100;
+      state.player.hunger = 100;
+      state.player.thirst = 100;
+    }
     done += dt;
   }
   // Once the family is dead the last message should be why, so no more reminders
@@ -142,7 +147,7 @@ interface WaterBook {
 
 function tick(state: GameState, rt: Runtime, tMid: number, dt: number): void {
   const dtH = dt / HOUR;
-  const sun = daylight(hourOf(tMid));
+  const sun = daylight(rt.cheats.hourLock ?? hourOf(tMid));
   const dark = sun < 0.35;
   const wind = windAt(tMid);
   const topo = topologyOf(state);
@@ -515,7 +520,7 @@ export function summarize(state: GameState): Summary {
   const rt = runtimeOf(state);
   const topo = topologyOf(state);
   const wind = windAt(state.worldSeconds);
-  const sun = daylight(hourOf(state.worldSeconds));
+  const sun = daylight(rt.cheats.hourLock ?? hourOf(state.worldSeconds));
   const demandWater = dailyWater();
   const demandMeals = dailyMeals();
   const blocking = (id: number) => (rt.issues.get(id) ?? []).some((i) => ['no_link', 'dry', 'no_seeds', 'no_feed'].includes(i.code));

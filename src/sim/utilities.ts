@@ -53,6 +53,18 @@ export interface Issue {
   text: string;
 }
 
+/** Cheat switches. They live with the runtime notes, so they are never saved and end with the session. */
+export interface CheatFlags {
+  /** Hour of day the world is locked to (12 = always day, 0 = always night), or null. */
+  hourLock: number | null;
+  instantBuild: boolean;
+  noWear: boolean;
+  freeWork: boolean;
+  godMode: boolean;
+  freeShop: boolean;
+  freeze: boolean;
+}
+
 /** What the survival rules keep between steps. None of this is saved: it is rebuilt from the pieces. */
 export interface Runtime {
   topo: Topology | null;
@@ -65,6 +77,7 @@ export interface Runtime {
   surplusFlow: number;
   /** Testing switch: turns hunger, thirst and the starter pack off. */
   disabled: boolean;
+  cheats: CheatFlags;
 }
 
 const runtimes = new WeakMap<GameState, Runtime>();
@@ -75,6 +88,7 @@ export function runtimeOf(state: GameState): Runtime {
     rt = {
       topo: null, pending: 0, issues: new Map(), powerSat: new Map(), surplusFlow: 0,
       disabled: false,
+      cheats: { hourLock: null, instantBuild: false, noWear: false, freeWork: false, godMode: false, freeShop: false, freeze: false },
     };
     runtimes.set(state, rt);
   }

@@ -6,6 +6,7 @@ import {
 } from '../data/structures';
 import { addMessage } from './messages';
 import { noteSalvage, salvageOf } from './upkeep';
+import { runtimeOf } from './utilities';
 import type { Expansion, GameState, Piece } from './state';
 
 export interface Grid {
@@ -212,7 +213,7 @@ export function placePiece(state: GameState, type: string, cx: number, cz: numbe
   const def = STRUCTURES[type];
   state.storage[type] -= 1;
   if (state.storage[type] <= 0) delete state.storage[type];
-  const piece: Piece = { id: state.nextId++, type, cx, cz, rot, hp: def.hp, maxHp: def.hp, progress: 0 };
+  const piece: Piece = { id: state.nextId++, type, cx, cz, rot, hp: def.hp, maxHp: def.hp, progress: runtimeOf(state).cheats.instantBuild ? 1 : 0 };
   state.pieces.push(piece);
   return { ok: true, piece };
 }
@@ -281,6 +282,10 @@ export function rotatePiece(state: GameState, pieceId: number): { ok: true } | {
  * finishes part-way through, the next in line starts at that moment.
  */
 export function advanceConstruction(state: GameState, worldDt: number): void {
+  if (runtimeOf(state).cheats.instantBuild) {
+    for (const p of state.pieces) p.progress = 1;
+    return;
+  }
   let remaining = worldDt;
   while (remaining > 1e-6) {
     const active = state.pieces.filter((p) => p.progress < 1).slice(0, balance.crewSize);

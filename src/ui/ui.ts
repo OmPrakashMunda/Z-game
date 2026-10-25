@@ -80,6 +80,7 @@ export class UI {
   private shownMuted: boolean | null = null;
   private readonly moneyEl = el('span', 'money-num');
   private readonly tagEl = el('span', 'tag');
+  private readonly cheatTag = el('span', 'tag cheat-tag');
   private readonly leftEl = el('span', 'days-left');
   private readonly locEl = el('span', 'place icon-label');
   private readonly locText = el('span');
@@ -159,7 +160,7 @@ export class UI {
     }
 
     this.hud.append(
-      day, this.countdown, this.leftEl, this.tagEl, this.timeEl, this.weatherEl, money, this.locEl,
+      day, this.countdown, this.leftEl, this.tagEl, this.cheatTag, this.timeEl, this.weatherEl, money, this.locEl,
       el('span', 'spacer'), this.viewGroup, this.speedGroup, this.speedEl, this.soundBtn, menuBtn,
     );
 
@@ -184,6 +185,15 @@ export class UI {
     this.goalEl.style.display = 'none';
     this.setHudVisible(false);
     root.append(this.hud, this.dock, this.goalEl, this.helpEl, this.tooltipEl);
+  }
+
+  /** Show which cheats are on, so you never forget one. Hidden when none are. */
+  setCheats(names: string[]): void {
+    this.cheatTag.style.display = names.length ? '' : 'none';
+    if (names.length) {
+      setText(this.cheatTag, `Cheats ${names.length}`);
+      this.cheatTag.title = names.join(', ');
+    }
   }
 
   /** Light the cables-and-pipes button while those lines are shown. */
