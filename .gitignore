@@ -2,3 +2,5 @@ node_modules
 dist
 .env.local
 *.log
+tests/e2e/node_modules
+tests/e2e/shots

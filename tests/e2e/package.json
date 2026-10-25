@@ -1,0 +1,9 @@
+{
+  "name": "z-game-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Browser tests for Z-Game. Run them with run.ps1.",
+  "dependencies": {
+    "playwright-core": "^1.64.1"
+  }
+}
