@@ -1,0 +1,168 @@
+import { balance } from '../data/balance';
+import type { LocationId, PlotId } from '../data/city';
+import { STORES, type StoreId } from '../data/stores';
+import { worldSecondsAt } from './clock';
+
+export type Phase = 'prep' | 'outbreak' | 'dead';
+
+/** Where the player currently is. 'base' exists once a plot has been bought. */
+export type PlaceId = LocationId | 'base';
+
+export interface PlayerState {
+  health: number;
+  hunger: number;
+  thirst: number;
+  fatigue: number;
+}
+
+export type OrderStatus = 'transit' | 'delivered' | 'refunded';
+
+export interface Order {
+  id: number;
+  storeId: StoreId;
+  items: Record<string, number>;
+  subtotal: number;
+  fee: number;
+  total: number;
+  placedAt: number;
+  deliverAt: number;
+  status: OrderStatus;
+}
+
+export type MessageKind = 'info' | 'news' | 'order' | 'warning';
+
+export interface Message {
+  id: number;
+  worldSeconds: number;
+  text: string;
+  kind: MessageKind;
+}
+
+/** A structure placed on the base plot. */
+export interface Piece {
+  id: number;
+  /** Structure id, for example 'fence_wood'. */
+  type: string;
+  /** Grid cell of the corner with the lowest x and z, counted from the plot's corner. */
+  cx: number;
+  cz: number;
+  /** Quarter turns, 0 to 3. */
+  rot: number;
+  hp: number;
+  maxHp: number;
+  /** 0 while it is only a plan, 1 when finished. */
+  progress: number;
+  /** Upgrade level, 0 to 3. Absent means 0. */
+  upgrade?: number;
+  /** How dirty a pond, panel or greenhouse is, 0 (clean) to 1. Absent means clean. */
+  dirt?: number;
+  /** Stored energy of a battery (kWh) or water in a tank (liters). */
+  level?: number;
+  /** How far a farm is through its growing cycle, 0 to 1. Zero means it is waiting for seeds or feed. */
+  growth?: number;
+}
+
+/** Everything the survival rules remember between steps. */
+export interface SurvivalState {
+  /** Meals, liters of water and liters of fuel that have been opened but not used up yet. */
+  mealBuffer: number;
+  waterBuffer: number;
+  fuelBuffer: number;
+  /** Meals harvested since the last daily report. */
+  harvestMeals: number;
+  /** The day the last harvest report was sent. */
+  harvestReportDay: number;
+  /** Whether the move-in supplies have been handed over. */
+  starterGiven: boolean;
+  /** When each kind of alert was last sent, so the same warning is not repeated. */
+  notices: Record<string, number>;
+}
+
+/** How many 10 m strips of extra land have been bought on each side of the plot. */
+export interface Expansion {
+  /** Toward -z */
+  n: number;
+  /** Toward +x */
+  e: number;
+  /** Toward +z */
+  s: number;
+  /** Toward -x */
+  w: number;
+}
+
+export interface GameState {
+  version: number;
+  worldSeconds: number;
+  rngSeed: number;
+  phase: Phase;
+  money: number;
+  at: PlaceId;
+  plotId: PlotId | null;
+  expansion: Expansion;
+  player: PlayerState;
+  /** Supplies and unplaced structures kept in storage. */
+  storage: Record<string, number>;
+  /** Structures placed on the base plot. */
+  pieces: Piece[];
+  survival: SurvivalState;
+  /** Current stock per store, per item. */
+  stores: Record<string, Record<string, number>>;
+  orders: Order[];
+  messages: Message[];
+  /** Last day for which the Director has been asked for events. */
+  directedDay: number;
+  nextId: number;
+}
+
+/** Bump when the shape of GameState changes. Older saves are filled in by save/store.ts. */
+export const SAVE_VERSION = 5;
+
+export function initialSurvival(): SurvivalState {
+  return {
+    mealBuffer: 0,
+    waterBuffer: 0,
+    fuelBuffer: 0,
+    harvestMeals: 0,
+    harvestReportDay: 0,
+    starterGiven: false,
+    notices: {},
+  };
+}
+
+export function initialStoreStock(): Record<string, Record<string, number>> {
+  const out: Record<string, Record<string, number>> = {};
+  for (const store of Object.values(STORES)) {
+    out[store!.id] = Object.fromEntries(store!.stock);
+  }
+  return out;
+}
+
+export function createNewGame(seed = Date.now() % 2_147_483_647): GameState {
+  const start = worldSecondsAt(balance.startDay, balance.startHour);
+  return {
+    version: SAVE_VERSION,
+    worldSeconds: start,
+    rngSeed: seed,
+    phase: 'prep',
+    money: balance.startingMoney,
+    at: 'motel',
+    plotId: null,
+    expansion: { n: 0, e: 0, s: 0, w: 0 },
+    player: { health: 100, hunger: 100, thirst: 100, fatigue: 100 },
+    storage: {},
+    pieces: [],
+    survival: initialSurvival(),
+    stores: initialStoreStock(),
+    orders: [],
+    messages: [
+      {
+        id: 1,
+        worldSeconds: start,
+        kind: 'info',
+        text: 'You have 30 days. Buy a base plot at Hillside Realty, then order supplies and build your defenses before the outbreak begins.',
+      },
+    ],
+    directedDay: balance.startDay,
+    nextId: 2,
+  };
+}

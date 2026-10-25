@@ -1,0 +1,184 @@
+# Implementation Plan
+
+Each top-level task is a milestone that ends with something playable.
+
+- [ ] 1. M0: Project setup (core done; asset-pack items remain)
+  - [x] 1.1 Create the Vite + TypeScript project with Three.js (UI is plain DOM, no UI library, by choice)
+    - _Requirements: 1.1, 13.4_
+  - [x] 1.2 Add `config.ts` and `.env` with `VITE_TIME_SCALE=24`, with validation and fallback
+    - _Requirements: 1.1, 1.2, 1.3_
+  - [x] 1.3 Create the folder layout (`sim`, `render`, `ui`, `data`, `save`, `director`) and a `data/balance.ts` file
+    - _Requirements: 1.4, 13.4_
+  - [x] 1.4 Render a lit ground plane with procedural low-poly models (glTF loading and failed-load fallback still to do)
+    - _Requirements: 11.1, 13.3_
+  - [ ] 1.5 Add `public/models/CREDITS.md` (done) and select the first CC0 asset packs (not yet; models are procedural)
+    - _Requirements: 11.4_
+
+- [x] 2. M1: Clock, lighting and saves
+  - [x] 2.1 Implement the world clock with fixed-step accumulator, frame clamp, and hidden-tab handling
+    - _Requirements: 2.1, 2.2, 2.3, 2.4_
+  - [x] 2.2 Define `GameState`, a new-game factory (Day 1, 08:00), and derive day/time from `worldSeconds`
+    - _Requirements: 2.5, 5.1_
+  - [x] 2.3 Add the HUD showing day and time, and the Settings / Save & Exit screen that stops the clock
+    - _Requirements: 2.6_
+  - [x] 2.4 Drive sun angle and light color from world time
+    - _Requirements: 2.7_
+  - [x] 2.5 Implement the save manager with IndexedDB, versioning, rolling backup, autosave, and save on hide/close
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+  - [x] 2.6 Checkpoint: close the tab and reopen it; the game resumes at the same game time
+    - _Requirements: 2.2, 3.3_
+
+- [x] 3. M2: City map and click-to-travel
+  - [x] 3.1 Define the city layout in `data/city.ts` and build the map from it (roads, shops, motel, houses, three plots)
+    - _Requirements: 4.1_
+  - [x] 3.2 Add the pan/zoom camera (drag, WASD, wheel) and remove the walking character
+    - _Requirements: 4.2_
+  - [x] 3.3 Add hover highlight with tooltip, click selection, and the place panel
+    - _Requirements: 4.3, 4.4_
+  - [x] 3.4 Add travel: distance-based game time, a short time-lapse, then opening the place
+    - _Requirements: 4.5, 4.7_
+  - [x] 3.5 Add map pins for the current place and the owned base
+    - _Requirements: 4.6_
+  - [x] 3.6 Add trees, barrels, crates, cars, lamp posts and other props
+    - _Requirements: 11.1, 11.2_
+  - [x] 3.7 Checkpoint: click places, travel, and arrive (verified in a real browser for the realty, hardware store, supermarket and vehicle dealer)
+    - _Requirements: 4.1�4.7_
+
+- [x] 4. M3: Economy and plot purchase
+  - [x] 4.1 Define items, store catalogs, prices, stock and delivery times in `data/`
+    - _Requirements: 1.4, 5.2_
+  - [x] 4.2 Build the shop UI with categories, quantity controls, cart and totals
+    - _Requirements: 5.2, 5.3, 5.4_
+  - [x] 4.3 Implement orders, delivery timers and base storage
+    - _Requirements: 5.4, 5.8_
+  - [x] 4.4 Implement the realty office and plot purchase with three differing plots
+    - _Requirements: 6.1, 6.2, 6.3, 6.4_
+  - [x] 4.5 Implement the rule-based Director with news, and panic buying from Day 20 (prices up, stock down)
+    - _Requirements: 5.5, 12.1, 12.2, 12.3_
+  - [x] 4.6 Implement store closing and order refunds at outbreak start
+    - _Requirements: 5.6, 5.7_
+  - [x] 4.7 Add the storage, orders and news panels
+    - _Requirements: 5.9_
+  - [x] 4.8 Checkpoint: buy a plot, order supplies, and receive the delivery after the delay (verified in a real browser)
+    - _Requirements: 5.4, 6.2_
+- [x] 5. M4: Online store and base builder
+  - [x] 5.1 Define about 45 structures (fences, walls, gates, houses, wells, power, farming, defense, storage, utility) with size, price, strength, build time and delivery time in `data/structures.ts`
+    - _Requirements: 7.2_
+  - [x] 5.2 Build the online store: categories, search, structure details, and delivery that depends on the heaviest item
+    - _Requirements: 7.1, 7.3, 7.4_
+  - [x] 5.3 Draw every structure as a procedural low-poly model with variants (five fence types, three wall types, six houses, and more)
+    - _Requirements: 7.2_
+  - [x] 5.4 Add the plot grid, placement preview, validity checks, rotation and drag-to-draw lines
+    - _Requirements: 7.6, 7.7, 7.9, 7.10_
+  - [x] 5.5 Add storage with Place buttons, the build bar and take-down that returns items to storage
+    - _Requirements: 7.5, 7.10, 7.12_
+  - [x] 5.6 Add crew construction over game time with visible growth
+    - _Requirements: 7.8, 7.11_
+  - [x] 5.7 Checkpoint: order fences, a house and a well online, receive them, and build a walled base (verified in a real browser)
+    - _Requirements: 7.1-7.12_
+  - [x] 5.9 Make delivery instant and free; remove the shipping delay and fee
+    - _Requirements: 7.3_
+  - [x] 5.10 Add product pictures rendered from the 3D models, used in the store, storage and build bar
+    - _Requirements: 7.4_
+  - [x] 5.11 Add landscaping: ponds, trees, hedges, flower beds, paths, fire pit, benches, boulders, scarecrow, windmill, barn, garage
+    - _Requirements: 7.14_
+  - [x] 5.12 Add land expansion: buy 10 m strips on any open side, trees cleared, grid grows, buildings stay put
+    - _Requirements: 7.15_
+  - [x] 5.13 Checkpoint: buy landscaping, place a pond and trees, drag a path, buy land and build on it (verified in a real browser)
+    - _Requirements: 7.14, 7.15_
+
+  - [x] 5.14 Add product info sheets (what it is, what it does, how it works, numbers)
+    - _Requirements: 7.17_
+  - [x] 5.15 Fit models to their tiles and join hedges; put fences, walls, sandbag walls and gates on tile edges with shared corner posts
+    - _Requirements: 7.16, 7.18_
+  - [x] 5.16 Return unused storage items for a refund (80%, online-store items only, closed after the outbreak)
+    - _Requirements: 5.10_
+  - [x] 5.17 Add the 1x/4x/12x speed control with the F key, held while busy, and automatic return to normal
+    - _Requirements: 2.8, 2.9, 2.10_
+  - [x] 5.18 Add the base architect: analysis of the current base, a tested upgrade plan (crop belt, wall and gate, inner yard, two cabins, water, power, watch posts) and sandbox funds
+    - _Requirements: 7.19, 7.20_
+  - [x] 5.19 Add a full 360 degree view: orbit camera with turn and tilt (30 to 88 degrees), turn and tilt buttons and compass, Q/E, Z/C and right-drag, view-aware panning and land-edge names, trees cleared on every side
+    - _Requirements: 2.11_
+  - [x] 5.20 Let the architect buy land for small plots, add a week of supplies, and add the cheat box (buildnow, money, woodsbase)
+    - _Requirements: 7.21, 7.22_
+  - [x] 5.21 Replace build mode with placing from storage; a card for every placed structure with instant rotate and move; wear, repair, upgrade and cleaning; tidy cable and pipe drawing
+    - _Requirements: 7.23 to 7.28_
+  - [ ] 5.22 Find repair tools and materials on supply runs (waits for the supply-run milestone)
+  - [ ] 5.8 Upgrades for existing structures (spikes on fences, house stages) and repair (planned with the outbreak milestone)
+    - _Requirements: 7.13_
+
+- [x] 5a. A living world: sound, traffic, day and night, weather
+  - [x] 5a.1 Synthesize ambient sound and interface sounds with the Web Audio API; add mute and volume controls
+    - _Requirements: 14.1, 14.2, 14.4, 14.5_
+  - [x] 5a.2 Drive cars along the roads with lanes, following distance, traffic lights and night headlights
+    - _Requirements: 14.6_
+  - [x] 5a.3 Add the sun and moon indicator, cloud shadows, birds, fireflies and rain
+    - _Requirements: 14.7, 14.8_
+  - [x] 5a.4 Make the world go quiet when the outbreak starts
+    - _Requirements: 14.3_
+  - [x] 5a.5 Checkpoint: sound, traffic and weather respond to place, time and phase (verified in a real browser)
+    - _Requirements: 14.1-14.9_
+
+- [x] 6. M5: Survival and production
+  - [x] 6.1 Implement thirst, hunger and health with the move-in supplies, daily use, and starvation (fatigue and sleeping left for later)
+    - _Requirements: 8.1, 8.2, 8.3_
+  - [x] 6.2 Implement power and water networks by reach, with power poles and pipe junctions
+    - _Requirements: 8.6_
+  - [x] 6.3 Implement solar, wind and generator power, batteries and fuel
+    - _Requirements: 8.7_
+  - [x] 6.4 Implement wells, raw and clean water, filters and tanks
+    - _Requirements: 8.8_
+  - [x] 6.5 Implement farms that need water, seeds or feed, and grow into fresh produce
+    - _Requirements: 8.8_
+  - [x] 6.6 Add the vitals card, warning signs above structures, connection lines and notifications
+    - _Requirements: 8.4, 8.5, 8.9, 8.10_
+  - [x] 6.7 Add the advisor with next-step guidance, alerts, buy and place buttons
+    - _Requirements: 8.11_
+  - [x] 6.8 Checkpoint: verified in a real browser (42 checks in survive.mjs)
+    - _Requirements: 8.1-8.11_
+
+- [ ] 7. M6: Outbreak and zombies
+  - [ ] 7.1 Implement the Day 30 transition and the zombie spawner
+    - _Requirements: 9.1_
+  - [ ] 7.2 Implement walker and runner types with animation
+    - _Requirements: 9.2_
+  - [ ] 7.3 Implement zombie states (wander, investigate, chase, attack barrier) and noise/light attraction
+    - _Requirements: 9.3_
+  - [ ] 7.4 Implement the shared flow field with barrier costs by HP
+    - _Requirements: 9.4_
+  - [ ] 7.5 Implement waves that scale with days and increase at night, and the zombie cap
+    - _Requirements: 9.5, 9.6_
+  - [ ] 7.6 Implement basic player combat and damage, death, and the game over screen
+    - _Requirements: 9.7_
+  - [ ] 7.7 Confirm the game continues indefinitely after the outbreak
+    - _Requirements: 9.8_
+  - [ ] 7.8 Checkpoint: strong walls hold against early waves; weak walls break
+    - _Requirements: 9.4, 7.7_
+
+- [ ] 8. M7: Supply runs (design to be decided after the outbreak exists: map-based expeditions or on-foot looting)
+  - [ ] 8.1 Define loot tables and containers for each location in `data/`
+    - _Requirements: 1.4, 10.1_
+  - [ ] 8.2 Implement searching containers with a world-time duration and noise
+    - _Requirements: 10.1_
+  - [ ] 8.3 Implement backpack capacity, carrying, and unloading to base storage
+    - _Requirements: 10.2, 10.5_
+  - [ ] 8.4 Implement the vehicle as a capacity and speed upgrade with fuel use and noise
+    - _Requirements: 10.3_
+  - [ ] 8.5 Implement location depletion and slow restock
+    - _Requirements: 10.4_
+  - [ ] 8.6 Checkpoint: complete a run to a store and return with useful supplies
+    - _Requirements: 10.1–10.5_
+
+- [ ] 9. Final: performance and polish
+  - [ ] 9.1 Profile with a full base and the zombie cap reached; fix hotspots to hold about 60 fps
+    - _Requirements: 13.1, 13.2_
+  - [ ] 9.2 Balance pass on prices, durations and rates at the default time scale
+    - _Requirements: 1.4_
+  - [ ] 9.3 Check error handling for asset load failures, save failures and unknown save versions
+    - _Requirements: 3.4, 13.3_
+
+## Later (not part of this spec)
+
+- Cloud saves with Supabase
+- Gemini AI Director behind a server function
+- Survivors, traders and raiders
