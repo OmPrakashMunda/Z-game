@@ -154,9 +154,9 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: .05em; text-t
 @keyframes blink { 50% { filter: brightness(1.5); } }
 
 /* =====================================================================================================================
-   Action dock (bottom centre): the main things you do
+   Action dock (bottom left): the main things you do
    ===================================================================================================================== */
-.dock { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; gap: 8px; padding: 9px 10px 11px; z-index: 12; pointer-events: auto; }
+.dock { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 8px; padding: 9px 10px 11px; z-index: 12; pointer-events: auto; }
 .dock.hidden { display: none !important; }
 .dock-btn { position: relative; width: 82px; height: 82px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 6px 4px 4px; font-size: 13px; }
 .dock-icon { display: inline-flex; }
@@ -168,7 +168,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: .05em; text-t
 @keyframes glow { 50% { filter: brightness(1.3); } }
 
 /* ---- Hints, goal banner, tooltip, toast ---- */
-.help { position: absolute; bottom: 10px; left: 14px; font-family: var(--font-ui); font-size: 12px; letter-spacing: .02em; color: rgba(236,230,210,.7); pointer-events: none; z-index: 10; text-shadow: 0 1px 3px #000, 0 0 6px #000; }
+.help { position: absolute; bottom: 12px; left: 488px; right: 330px; font-family: var(--font-ui); font-size: 12px; letter-spacing: .02em; color: rgba(236,230,210,.7); pointer-events: none; z-index: 10; text-shadow: 0 1px 3px #000, 0 0 6px #000; }
 .goal { position: absolute; top: 62px; left: 50%; transform: translateX(-50%); max-width: min(640px, 92vw); padding: 10px 18px 10px 22px; font: 600 17px/1.3 var(--font-display); letter-spacing: .04em; color: #fff; background: linear-gradient(180deg, #8c241a, #5e150e); border: 2px solid var(--ink); border-left: 10px solid transparent; border-image: none; box-shadow: inset 0 0 0 1px #c9604f, 0 6px 16px rgba(0,0,0,.5); background-clip: padding-box; pointer-events: none; z-index: 10; }
 .goal::before { content: ''; position: absolute; left: -10px; top: -2px; bottom: -2px; width: 10px; background: var(--hazard-red); }
 .tooltip { position: fixed; padding: 6px 12px; font: 500 14px var(--font-ui); white-space: nowrap; pointer-events: none; z-index: 60; border-left: 4px solid var(--amber); }

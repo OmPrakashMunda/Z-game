@@ -32,7 +32,7 @@ and you build by placing structures from storage while you stand at your base.
 - **Your family** (left): health, thirst and hunger, then water, food and power at a glance.
 - **Advisor** (left): the next step, urgent alerts, and a checklist. Its buttons buy and place things for you.
 - **Plan base** (in the advisor): opens the [Base Architect](Base-Architect.md).
-- **Dock** (bottom): Build, Online store, Storage, Orders, News.
+- **Dock** (bottom left): Build, Online store, Storage, Orders, News.
 - **Structure card** (right): click anything you placed.
 - **Warning signs** float over structures with a problem: a bolt for power, a drop for water, a fuel pump, a sprout for
   seeds, wheat for animal feed, a wrench for worn out, drops for dirty. Hover for the full text.

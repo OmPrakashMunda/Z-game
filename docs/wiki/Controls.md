@@ -48,5 +48,5 @@ tilt up, tilt down, cables and pipes), the speed buttons, sound and the menu.
 The compass needle points north. Click it to reset both turn and tilt.
 
 ## Bottom of the screen
-The dock (Build, Online store, Storage, Orders, News), a hint above it that says what `Space` would do right now, the
+The dock in the bottom left corner (Build, Online store, Storage, Orders, News), a hint above the middle that says what `Space` would do right now, the
 driving display while you drive, and the corner map on the right.
