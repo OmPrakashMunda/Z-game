@@ -18,6 +18,7 @@ const check = (name, ok, info = '') => { (ok ? pass++ : fail++); console.log((ok
 await page.goto(`http://localhost:${PORT}/?quality=low`);
 await page.waitForTimeout(2500);
 await page.getByText('New Game').click();
+await page.getByRole('button', { name: 'Start game' }).click();
 await page.waitForTimeout(1500);
 
 // The base the player already has: a plot, a few fence sections, a well and a garden bed

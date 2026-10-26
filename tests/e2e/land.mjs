@@ -32,6 +32,7 @@ const money = (txt) => Number(txt.replace(/[^0-9]/g, ''));
 await page.goto(`http://localhost:${process.env.PORT || 5173}/?quality=low`);
 await page.waitForTimeout(2500);
 await page.getByText('New Game').click();
+await page.getByRole('button', { name: 'Start game' }).click();
 await page.waitForTimeout(1200);
 await page.evaluate(() => window.__game.survivalOff(true));
 await page.evaluate(() => window.__game.ownPlot('warehouse'));

@@ -4,6 +4,7 @@ import { dayOf } from './clock';
 import { dailyRestock, processDeliveries, refundPendingOrders } from './economy';
 import { addMessage } from './messages';
 import type { GameState } from './state';
+import { stepExposure } from './exposure';
 import { stepSearch } from './loot';
 import { stepSurvival } from './survival';
 import { stepUpkeep } from './upkeep';
@@ -25,6 +26,7 @@ export function stepSim(state: GameState, _realDt: number, worldDt: number): voi
   advanceConstruction(state, worldDt);
   stepUpkeep(state, worldDt);
   stepSurvival(state, worldDt);
+  stepExposure(state, worldDt);
   stepSearch(state, worldDt);
 
   // Deliveries that are due arrive before the shops close.

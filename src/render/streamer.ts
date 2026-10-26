@@ -6,6 +6,7 @@ import { CHUNK, chunkCoord, getChunk, inWorldChunk, type ChunkData } from '../wo
 import { applyEdgeFade, edgeFade, setEdgeRect } from './edgefade';
 import { buildForestInto } from './forest';
 import { glassMat, makeBuilding } from './models';
+import { applySeasonGround } from './seasonfx';
 
 /**
  * Draws the chunks of the world that are near the player and drops the rest. Each chunk is built from its
@@ -21,7 +22,7 @@ const MIST_WIDTH = 75;
 
 const roadMat = applyEdgeFade(new THREE.MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.95 }));
 const dashMat = applyEdgeFade(new THREE.MeshStandardMaterial({ color: 0xe6d37a, roughness: 0.9 }));
-const fieldMat = applyEdgeFade(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
+const fieldMat = applySeasonGround(applyEdgeFade(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 })));
 const houseMat = applyEdgeFade(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.05, flatShading: true }));
 const dashGeo = new THREE.BoxGeometry(3, 0.02, 0.22);
 

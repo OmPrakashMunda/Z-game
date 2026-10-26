@@ -1,19 +1,22 @@
 import { itemById } from '../data/items';
 import { isCarriable, PACK_KG, weightOf, weightOfAll } from '../data/weights';
 import { effective } from '../data/vehicles';
+import { runtimeOf } from './utilities';
 import { vehicleDef, type OwnedVehicle } from './vehicles';
 import type { GameState } from './state';
 
 /** Moving goods between storage, the backpack and a vehicle's load space. */
 
 export const packWeight = (state: GameState) => weightOfAll(state.pack);
-export const packRoom = (state: GameState) => Math.max(0, PACK_KG - packWeight(state));
+/** Room left in the backpack in kilograms. The BIGPACK cheat removes the limit. */
+export const packRoom = (state: GameState) => (runtimeOf(state).cheats.bigPack ? 1e9 : Math.max(0, PACK_KG - packWeight(state)));
 
 export function loadWeight(v: OwnedVehicle): number {
   return weightOfAll(v.cargo);
 }
 
-export function loadRoom(v: OwnedVehicle): number {
+export function loadRoom(v: OwnedVehicle, state?: GameState): number {
+  if (state && runtimeOf(state).cheats.bigPack) return 1e9;
   return Math.max(0, effective(vehicleDef(v), v.parts).cargo - loadWeight(v));
 }
 
@@ -26,7 +29,7 @@ export function vehicleAtHand(state: GameState, x: number, z: number): OwnedVehi
   let bestD = AT_HAND;
   for (const v of state.vehicles) {
     const d = Math.hypot(v.x - x, v.z - z);
-    if (d < bestD && loadRoom(v) > 0.5) {
+    if (d < bestD && loadRoom(v, state) > 0.5) {
       best = v;
       bestD = d;
     }
@@ -56,7 +59,7 @@ export function pickUp(state: GameState, goods: Record<string, number>): { took:
     // Vehicle first
     const v = vehicleAtHand(state, state.pos.x, state.pos.z);
     if (v && n > 0) {
-      const fit = Math.min(n, Math.floor(loadRoom(v) / w + 1e-6));
+      const fit = Math.min(n, Math.floor(loadRoom(v, state) / w + 1e-6));
       if (fit > 0) {
         add(v.cargo, id, fit);
         add(took, id, fit);
@@ -91,7 +94,7 @@ export function unloadPack(state: GameState): number {
 export function loadFromStorage(state: GameState, v: OwnedVehicle, item: string, n: number): number {
   if (state.at !== 'base' || !isCarriable(item)) return 0;
   const w = weightOf(item);
-  const fit = Math.min(n, state.storage[item] ?? 0, Math.floor(loadRoom(v) / w + 1e-6));
+  const fit = Math.min(n, state.storage[item] ?? 0, Math.floor(loadRoom(v, state) / w + 1e-6));
   if (fit <= 0) return 0;
   take(state.storage, item, fit);
   add(v.cargo, item, fit);

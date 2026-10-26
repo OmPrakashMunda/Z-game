@@ -31,7 +31,7 @@ Besides the browser tests, always run `npm run build`, which typechecks and buil
 | `models` | 7 | Finished models stand on the ground; blueprints are never squashed |
 | `land` | 20 | Product pictures, landscaping, buying more land, building on new land, save |
 | `woods` | 7 | Trees are cleared around bought land; the long walk to the woods |
-| `lifecycle` | 30 | Prices and stock through the 30 days, panic, the outbreak, closing shops |
+| `lifecycle` | 30 | Prices and stock through the 30 days, panic, the outbreak, closing shops, sound, a storm with thunder |
 | `survival` | 45 | Food, water, power, farms, links, warning signs, the advisor |
 | `product-sheet` | 20 | The product sheet for every product |
 | `speed` | 24 | 1x, 4x, 12x, the F key, holding speed while busy, slowing down on warnings, returns |
@@ -43,6 +43,8 @@ Besides the browser tests, always run `npm run build`, which typechecks and buil
 | `woodsbase` | 16 | The `WOODSBASE` cheat: land, a finished base, 14 days of survival |
 | `cheat-box` | 13 | Opening the cheat box, typing safely, `BUILDNOW`, `MONEY` |
 | `cheats` | 43 | Every cheat, and that cheats end with the session (title screen and reload) |
+| `cheats-move` | 33 | The movement cheats: BACKTOBASE, GOTO, GOTOHOUSE, COORDS, GIVECAR, CALLCAR, FASTFEET, NOCLIP, BIGPACK, TURBO, and that they end with the session |
+| `weather` | 54 | The character creator, seasons, weather as data, rain over the whole screen, lightning, health lost to rain, cold, heat and lightning, shelter, clothes and the character panel, lamp light at night, saving |
 | `interact` | 43 | Placing from storage, the structure card, rotate, move, wear, repair, upgrade, clean, scrap, cables and pipes |
 
 The counts are what passes today. If you add a check, update the number here.
@@ -62,6 +64,9 @@ The counts are what passes today. If you add a check, update the number here.
 
 ## Known awkward spots
 
+- Every test starts a game by clicking **New Game** and then **Start game** in the character creator.
+- Headless Chrome has no GPU, so two browser tests at once make each other slow. Walking and timing checks can then fail for no real reason; run those one at a time.
+- Weather tests take over the sky with `setWeatherOverride` (or `setRain`) so the real weather does not change the result. `survivalOff(true)` also switches off weather damage.
 - Right after an edit, the dev server may reload the page under a running test. Do not edit while tests run.
 - Pressing `Esc` with nothing open opens the pause menu, and the menu ignores clicks. Tests press `Esc` only when
   something is open.

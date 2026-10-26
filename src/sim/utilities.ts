@@ -1,6 +1,7 @@
 import { gridRectOf, STRUCTURES } from '../data/structures';
 import { UTILITIES, type FarmSpec, type IssueKind, type PowerSpec, type WaterSpec } from '../data/survival';
 import type { GameState, Piece } from './state';
+import type { Weather } from './weather';
 
 /**
  * Which structures are connected to which. Power and water each form networks: two pieces join when the gap between
@@ -69,6 +70,14 @@ export interface CheatFlags {
   noDamage: boolean;
   /** Searching a house takes no time. */
   quickSearch: boolean;
+  /** You walk three times as fast. */
+  fastFeet: boolean;
+  /** Nothing solid stops you or your vehicles. */
+  noClip: boolean;
+  /** The backpack and vehicles carry any weight. */
+  bigPack: boolean;
+  /** Vehicles are twice as fast. */
+  turbo: boolean;
 }
 
 /** What the survival rules keep between steps. None of this is saved: it is rebuilt from the pieces. */
@@ -83,6 +92,8 @@ export interface Runtime {
   surplusFlow: number;
   /** Testing switch: turns hunger, thirst and the starter pack off. */
   disabled: boolean;
+  /** A cheat or a test has taken over the weather. Not saved. */
+  weatherOverride: Partial<Weather> | null;
   cheats: CheatFlags;
 }
 
@@ -94,7 +105,8 @@ export function runtimeOf(state: GameState): Runtime {
     rt = {
       topo: null, pending: 0, issues: new Map(), powerSat: new Map(), surplusFlow: 0,
       disabled: false,
-      cheats: { hourLock: null, instantBuild: false, noWear: false, freeWork: false, godMode: false, freeShop: false, freeze: false, freeFuel: false, noDamage: false, quickSearch: false },
+      weatherOverride: null,
+      cheats: { hourLock: null, instantBuild: false, noWear: false, freeWork: false, godMode: false, freeShop: false, freeze: false, freeFuel: false, noDamage: false, quickSearch: false, fastFeet: false, noClip: false, bigPack: false, turbo: false },
     };
     runtimes.set(state, rt);
   }

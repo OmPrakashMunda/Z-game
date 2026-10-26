@@ -494,7 +494,7 @@ export interface CharacterRig {
   armR: THREE.Object3D;
 }
 
-export function makeCharacter(opts: { shirt: number; pants: number; skin: number; hair?: number; backpack?: boolean }): CharacterRig {
+export function makeCharacter(opts: { shirt: number; pants: number; skin: number; hair?: number; backpack?: boolean; longHair?: boolean }): CharacterRig {
   const group = new THREE.Group();
   const body = new THREE.Group();
   group.add(body);
@@ -517,12 +517,19 @@ export function makeCharacter(opts: { shirt: number; pants: number; skin: number
   const armR = makeLimb(0.42, 1.5, 0.17, 0.7, opts.shirt);
   addBox(body, 0.34, 0.34, 0.34, opts.skin, 0, 1.58, 0);
   if (opts.hair !== undefined) addBox(body, 0.37, 0.14, 0.37, opts.hair, 0, 1.83, -0.01);
+  if (opts.hair !== undefined && opts.longHair) {
+    // Long hair falling down the back and past the shoulders
+    addBox(body, 0.4, 0.5, 0.12, opts.hair, 0, 1.36, -0.22);
+    addBox(body, 0.08, 0.3, 0.2, opts.hair, -0.2, 1.5, -0.08);
+    addBox(body, 0.08, 0.3, 0.2, opts.hair, 0.2, 1.5, -0.08);
+  }
   if (opts.backpack) addBox(body, 0.5, 0.6, 0.26, 0x7a5a2a, 0, 0.9, -0.3);
 
   return { group: shadow(group), legL, legR, armL, armR };
 }
 
-export function makePlayer(): CharacterRig {
+export function makePlayer(gender: 'male' | 'female' = 'male'): CharacterRig {
+  if (gender === 'female') return makeCharacter({ shirt: 0xc2507f, pants: 0x3a3f4a, skin: 0xf0c9a0, hair: 0x2c1b10, backpack: true, longHair: true });
   return makeCharacter({ shirt: 0x2f6fb3, pants: 0x3a3f4a, skin: 0xf0c9a0, hair: 0x4a3320, backpack: true });
 }
 

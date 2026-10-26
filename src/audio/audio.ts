@@ -18,6 +18,8 @@ export interface SoundEnv {
   fire: number;
   /** How hard it is raining, 0 to 1. */
   rain: number;
+  /** How violent the storm is, 0 to 1. */
+  storm: number;
   /** After the outbreak the town goes quiet and eerie. */
   outbreak: boolean;
 }
@@ -54,7 +56,7 @@ export class GameAudio {
   private volume = 0.6;
   private muted = false;
   private failed = false;
-  private env: SoundEnv = { hour: 11, forest: 0.4, traffic: 0, water: 0, fire: 0, rain: 0, outbreak: false };
+  private env: SoundEnv = { hour: 11, forest: 0.4, traffic: 0, water: 0, fire: 0, rain: 0, storm: 0, outbreak: false };
   private readonly next = { bird: 0, owl: 0, horn: 0, crackle: 0, thunder: 0 };
   /** Counts of one-off sounds played, so tests can check the ambience is alive. */
   readonly stats = { birds: 0, owls: 0, horns: 0, thunder: 0, crackles: 0, effects: 0 };
@@ -249,7 +251,7 @@ export class GameAudio {
       this.layers.get(name)?.gain.setTargetAtTime(value, ctx.currentTime, 0.9);
       this.levels[name] = value;
     };
-    set('wind', (0.1 + 0.14 * env.forest + 0.14 * env.rain) * (0.75 + 0.25 * day) * (out ? 1.35 : 1));
+    set('wind', (0.1 + 0.14 * env.forest + 0.14 * env.rain + 0.22 * env.storm) * (0.75 + 0.25 * day) * (out ? 1.35 : 1));
     set('rustle', env.forest * 0.1 * (0.4 + 0.6 * day) * (1 + env.rain));
     set('traffic', out ? 0 : env.traffic * (0.22 * day + 0.08 * night));
     set('crickets', out ? 0.008 : night * night * (0.35 + 0.65 * env.forest) * (1 - env.rain) * 0.07);
@@ -274,10 +276,6 @@ export class GameAudio {
     if (env.fire > 0.05 && now >= this.next.crackle) {
       this.crackle(env.fire);
       this.next.crackle = now + 0.04 + (Math.random() * 0.3) / env.fire;
-    }
-    if (env.rain > 0.7 && now >= this.next.thunder) {
-      this.thunder();
-      this.next.thunder = now + 35 + Math.random() * 60;
     }
   }
 
@@ -383,9 +381,17 @@ export class GameAudio {
     this.stats.crackles++;
   }
 
-  private thunder(): void {
-    this.burst(3.2, 'lowpass', 160, 0.6, 3, this.ambient);
-    this.stats.thunder++;
+  /** A lightning strike at a distance in meters: a crack if it is close, then a rumble that arrives later the further away it was. */
+  thunderAt(distance: number): void {
+    if (!this.ctx) return;
+    const loud = Math.max(0.25, Math.min(1, 1.1 - distance / 160));
+    const delay = Math.min(4.5, distance / 110);
+    window.setTimeout(() => {
+      if (!this.ctx || this.ctx.state !== 'running') return;
+      if (distance < 70) this.burst(0.35, 'bandpass', 1100, 0.55 * loud, 0.35, this.ambient);
+      this.burst(3.6, 'lowpass', 150 + (distance < 40 ? 80 : 0), 0.7 * loud, 3.4, this.ambient);
+      this.stats.thunder++;
+    }, delay * 1000);
   }
 
   // ------------------------------------------------------------ Interface sounds

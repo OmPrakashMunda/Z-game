@@ -14,8 +14,10 @@ Cheats are **never saved**. They are switched off when you:
 While any cheat is on, a red **Cheats** tag shows in the top bar. Hover it to see which.
 
 Where this comes from in the code: the rule switches live in the simulation's runtime notes (`runtimeOf(state).cheats`),
-which are rebuilt from nothing every time a game is loaded and are not part of the save. The picture-only switches (rain
-and cars) are in `session` in `src/cheats.ts`, and are reset whenever a game is left or loaded.
+which are rebuilt from nothing every time a game is loaded and are not part of the save. The picture-only switches (cars)
+are in `session` in `src/cheats.ts`, and are reset whenever a game is left or loaded. The weather switches set
+`runtimeOf(state).weatherOverride`, which the rules and the picture both read. The movement codes are in
+`src/cheats-move.ts`.
 
 ## Switches
 
@@ -25,8 +27,10 @@ Type the code to turn it on. Type it again to turn it off.
 | --- | --- |
 | `NONIGHT` | It is always 12:00. The light, solar panels, lamps and floodlights follow. Replaces `NODAY`. |
 | `NODAY` | It is always midnight. Replaces `NONIGHT`. |
-| `NORAIN` | It never rains. |
-| `RAINALLDAY` | It rains all the time. Replaces `NORAIN`. |
+| `NORAIN` | The sky stays dry: no rain, no snow, no storm. |
+| `RAINALLDAY` | It rains all the time. Replaces the other weather switches. |
+| `STORM` | A thunderstorm rages all the time, with lightning. It can hurt you in the open. |
+| `SNOWFALL` | It snows all the time. |
 | `NOBUILDTIME` | Everything you place is finished the moment it is placed, and everything unfinished is finished at once. |
 | `NOCARS` | Hides all the traffic on the roads, including new cars. The traffic lights stay. |
 | `NOWEAR` | Nothing wears out or gets dirty. |
@@ -37,6 +41,30 @@ Type the code to turn it on. Type it again to turn it off.
 | `ENDLESSFUEL` | Vehicles use no fuel. |
 | `TOUGHCARS` | Crashes do no damage to your vehicles. |
 | `QUICKSEARCH` | Searching a house takes no time. |
+| `FASTFEET` | You walk and run three times as fast. |
+| `NOCLIP` | Walls, houses, trees and fences no longer stop you or your vehicles. The edge of the world still does. |
+| `BIGPACK` | Your backpack and your vehicles carry any weight. |
+| `TURBO` | Vehicles are twice as fast and pick up speed twice as quickly. |
+
+## Getting around
+
+| Code | Effect |
+| --- | --- |
+| `BACKTOBASE` | Takes you, and the vehicle you are driving, to the middle of your land. |
+| `GOTO place` | Takes you to a place: `base`, `motel`, `realty`, `hardware`, `supermarket`, `pharmacy`, `guns`, `farmsupply`, `gas`, `dealer`, `woods`, `farmstead`, `warehouse` or `creekside`. A wrong name lists them. |
+| `GOTOHOUSE` | Takes you to the door of the nearest house nobody has searched. |
+| `GOTOCAR` | Takes you to your nearest vehicle. |
+| `CALLCAR` | Brings your nearest vehicle to you. |
+| `GOTOWAYPOINT` | Takes you to the waypoint you set on the map. |
+| `COORDS x z` | Takes you to a map position. Example: `COORDS 150 -40`. The world runs from -640 to 640. |
+| `WHEREAMI` | Tells you your map position and where you are. |
+| `GIVECAR type` | Parks a vehicle with a full tank in front of you: `bicycle`, `scooter`, `sedan`, `pickup`, `van`, `suv` or `truck` (a pickup if you leave it out). |
+| `REFUELALL` | Fills the tank of every vehicle you own. |
+| `REPAIRCARS` | Repairs every vehicle you own. |
+| `EMPTYPACK` | Moves everything in your backpack into storage, wherever you are. |
+| `RESETHOUSES` | Makes every searched house full again. |
+
+Teleporting while you drive takes the vehicle with you.
 
 ## One-off codes
 
@@ -54,7 +82,9 @@ Type the code to turn it on. Type it again to turn it off.
 | `FULLTANKS` | Fills every water tank and battery. |
 | `WOODSBASE` | Buys the Deep Woods Clearing if you have no plot, buys land to grow it to about 46 x 44 m, builds the Architect's whole design and finishes it. Adds funds if needed. It will not run if you already own a different plot. It also moves you to the base. |
 | `NORMALTIME` | Turns off `NONIGHT`, `NODAY` and `FREEZETIME`. |
-| `NORMALWEATHER` | Turns off `NORAIN` and `RAINALLDAY`. |
+| `NORMALWEATHER` | Turns off `NORAIN`, `RAINALLDAY`, `STORM` and `SNOWFALL`, so the real weather returns. |
+| `SETSEASON name` | Moves the calendar to early `spring`, `summer`, `autumn` or `winter`. |
+| `GIVECLOTHES` | Puts one of every piece of clothing into your storage. |
 | `RESETCHEATS` | Turns every switch off. |
 | `HELP` | Lists the codes and which switches are on. |
 

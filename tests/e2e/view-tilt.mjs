@@ -22,6 +22,7 @@ const settle = async () => { await G(() => window.__game.settleCamera()); await 
 await page.goto(`http://localhost:${PORT}/?quality=low`);
 await page.waitForTimeout(2500);
 await page.getByText('New Game').click();
+await page.getByRole('button', { name: 'Start game' }).click();
 await page.waitForTimeout(1500);
 await G(() => {
   const g = window.__game;
@@ -124,6 +125,23 @@ const walkDir = async (key, ms = 2500) => {
   return { len, dx: dx / (len || 1), dz: dz / (len || 1) };
 };
 // Walking works at steep and shallow tilt
+// Start the walking checks on open ground: the player begins in the middle of the base, which the tower and cabin fill
+await G(async () => {
+  const c = await import('/src/world/collide.ts');
+  const col = await import('/src/sim/colliders.ts');
+  const g = window.__game;
+  c.setBaseSolids(col.baseColliders(g.state));
+  const p = g.player();
+  for (let r = 0; r <= 80; r += 4) {
+    for (let a = 0; a < 360; a += 30) {
+      const x = p.x + Math.cos((a * Math.PI) / 180) * r;
+      const z = p.z + Math.sin((a * Math.PI) / 180) * r;
+      let free = true;
+      for (let rr = 0; rr <= 12 && free; rr += 2) for (let b = 0; b < 360; b += 45) if (c.blockedAt(x + Math.cos((b * Math.PI) / 180) * rr, z + Math.sin((b * Math.PI) / 180) * rr, 0.6)) { free = false; break; }
+      if (free) { g.teleport(x, z); return; }
+    }
+  }
+});
 for (const [a, t] of [[45, 88], [135, 35]]) {
   await G(([a, t]) => { const g = window.__game; g.turnView(a - g.viewDegrees()); g.tiltView(t - g.tiltDegrees()); g.snapCamera(-30, 30); g.settleCamera(); }, [a, t]);
   await page.waitForTimeout(400);

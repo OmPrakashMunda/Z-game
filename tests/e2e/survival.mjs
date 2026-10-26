@@ -20,6 +20,7 @@ async function fresh() {
   await page.getByText('New Game').click();
   const confirm = page.getByText('Start new game');
   if (await confirm.isVisible().catch(() => false)) await confirm.click();
+  await page.getByRole('button', { name: 'Start game' }).click();
   await page.waitForTimeout(1200);
   await G(() => { window.__game.setRain(0); window.__game.ownPlot('warehouse'); window.__game.state.at = 'base'; });
 }
@@ -157,7 +158,7 @@ await page.waitForTimeout(2500);
 await page.getByText('Continue').click();
 await page.waitForTimeout(1500);
 st = await S();
-check('battery charge survives save and reload', st.pieces.some((p) => p.type === 'battery_bank' && (p.level ?? 0) > 0.3) && st.version === 8);
+check('battery charge survives save and reload', st.pieces.some((p) => p.type === 'battery_bank' && (p.level ?? 0) > 0.3) && st.version === 9);
 
 // =============================================================== 4. Generators and fuel
 await fresh();

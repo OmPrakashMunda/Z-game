@@ -20,7 +20,10 @@ The full requirements, design and task list are in `.kiro/specs/zombie-base-surv
 - **Vehicles.** Seven vehicles with fuel, wear, crashes, off-road limits, a dealership, parts and a trailer.
 - **Looting.** After the outbreak every house can be searched once; goods have weight, and a backpack and vehicles carry them.
 - **Speed control and returns.**
-- **Cheats** that last for the session only.
+- **Cheats** that last for the session only, including teleports, vehicle and walking switches, and weather.
+- **Seasons and weather.** Four 20-day seasons, rain, snow, thunderstorms with lightning, heatwaves and cold snaps, painted over the whole screen. Out in the open they cost health.
+- **Clothes and a character.** A name and gender at the start; 18 clothes in five slots with warmth and dryness.
+- **Light at night.** Powered lamps, floodlights and fires light the ground around them.
 - **Product sheets** for every product, and thumbnails cached in the browser.
 
 ## Next
@@ -38,6 +41,11 @@ The full requirements, design and task list are in `.kiro/specs/zombie-base-surv
 - **Cloud saves.**
 - **People who live at the base.** Cabins and beds would add people, who would add needs and jobs.
 - **Fatigue and sleep, hygiene and illness.** The fields exist; the rules do not.
+- **Maps and multiplayer servers.** Several maps, and servers where people play together. Not started. What is already in place:
+  the world is generated from a seed in chunks (the same coordinates always give the same chunk), the weather is a pure
+  function of the seed and the clock, and the rules in sim do not touch the screen. A server would run sim as the one
+  authority and send each player the chunks and changes near them, and the browser would become a client that sends
+  inputs. Open questions: how saves work with several players, how much a player's cheats may touch, and how the world clock is shared when players want different speeds. This comes after the zombies.
 - **Real 3D assets** (glTF packs under permissive licences) in place of the procedural models.
 - **Harder rules for building.** For example, refusing to let non-survival buildings go up before food and water exist.
 

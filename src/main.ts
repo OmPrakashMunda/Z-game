@@ -7,14 +7,14 @@ import './style.css';
 import { GameAudio, type SoundEnv } from './audio/audio';
 import { config, setTimeScale } from './config';
 import { balance } from './data/balance';
-import { city, locationById, type LocationId, type PlotId } from './data/city';
+import { city, locationById, WORLD_HALF, type LocationId, type PlotId } from './data/city';
 import { isStore, ONLINE_STORE_ID, type StoreId } from './data/stores';
 import { itemById } from './data/items';
 import { CELL, edgeLength, footprint, isEdgeStructure, isLineStructure, isStructure, STRUCTURES, STRUCTURE_LIST } from './data/structures';
 import { makeStructure, structureBounds } from './render/structures';
 import { applyEvents, RuleBasedDirector, validateEvents } from './director';
 import { Input } from './input';
-import { GameRenderer, type MapPoint, type PickResult } from './render/scene';
+import { GameRenderer, type LightSource, type MapPoint, type PickResult } from './render/scene';
 import { prewarmThumbnails, preloadThumbnails, thumbnailStats } from './render/thumbnails';
 import { headlightMat } from './render/traffic';
 import { loadGame, saveGame } from './save/store';
@@ -42,6 +42,11 @@ import { baseColliders } from './sim/colliders';
 import { AREA_NAMES, areaAt, houseById } from './world/gen';
 import { Minimap } from './ui/minimap';
 import { Dashboard } from './ui/dashboard';
+import { CharacterPanel } from './ui/character-panel';
+import { SEASON_NAMES, currentWeather, snowCover, type Weather } from './sim/weather';
+import { exposureNow, lightningStrike } from './sim/exposure';
+import { takeOff as takeOffItem, wear as wearItem } from './sim/outfit';
+import type { Slot } from './data/clothing';
 import { CargoPanel } from './ui/cargo-panel';
 import { describeGoods, loadFromStorage, loadWeight, packWeight, unloadPack, unloadToStorage } from './sim/cargo';
 import { activeSearch, cancelSearch, DOOR_REACH, doorOf, houseAtDoor, houseState, startSearch, takeLeftovers, takeSearchResults } from './sim/loot';
@@ -49,7 +54,7 @@ import { PACK_KG } from './data/weights';
 import { ATTACHMENT_LIST, effective, VEHICLES, type VehicleId } from './data/vehicles';
 import {
   addVehicle, atPump, condition, drivenVehicle, driveStep, enterVehicle, exitVehicle, fitPart, fitProblem, FUEL_ITEM, onHand, parkingSpot, pumpPrice,
-  refuelAtPump, refuelFromCans, removePart, repairVehicle, tankSize, topSpeedOn, surfaceAt, vehicleNear, type OwnedVehicle,
+  moveTrailer, refuelAtPump, refuelFromCans, removePart, repairVehicle, tankSize, topSpeedOn, surfaceAt, vehicleNear, type OwnedVehicle,
 } from './sim/vehicles';
 import { PiecePanel } from './ui/piece-panel';
 import { PlacingBar } from './ui/placing-bar';
@@ -111,6 +116,16 @@ const audio = new GameAudio();
 const gfx = new GameRenderer(gameEl);
 gfx.buildCity(city);
 const input = new Input();
+// Lightning in a storm: the crack and rumble, and a chance it hits someone standing in the open
+gfx.atmosphere.onLightning = (x, z) => {
+  if (!state || screen !== 'play') return;
+  const d = Math.hypot(x - state.pos.x, z - state.pos.z);
+  audio.thunderAt(d);
+  if (lightningStrike(state, d) > 0) {
+    audio.error();
+    refreshSurvival();
+  }
+};
 
 const ui = new UI(uiEl, {
   onSpeed: (m) => setSpeed(m),
@@ -159,6 +174,7 @@ const leftStack = document.createElement('div');
 leftStack.className = 'left-stack';
 uiEl.append(leftStack);
 const vitals = new VitalsPanel(leftStack);
+const characterPanel = new CharacterPanel(leftStack, { onWear: (id) => handleWear(id), onTakeOff: (slot) => handleTakeOff(slot) });
 const advisor = new AdvisorPanel(leftStack, (a) => handleAdvice(a), () => toggleArchitect());
 const shop = new ShopView(uiEl, () => state!, handleOrder, leaveBuilding, () => {
   shop.close();
@@ -221,6 +237,7 @@ function soundEnv(): SoundEnv {
     forest: scene.forest,
     traffic: scene.traffic,
     rain: scene.rain,
+    storm: scene.storm,
     water,
     fire,
     outbreak: !!state && state.phase !== 'prep',
@@ -270,6 +287,7 @@ async function showTitle(): Promise<void> {
   gfx.setWarnings(new Map());
   gfx.setLinks([]);
   vitals.hide();
+  characterPanel.hide();
   advisor.hide();
   gfx.setPlayer(null);
   gfx.jumpTo({ x: 0, z: 8 });
@@ -278,7 +296,7 @@ async function showTitle(): Promise<void> {
   waypoint = null;
   gfx.setInteractive(false);
   const result = await loadGame();
-  const startNew = () => beginGame(createNewGame(), true);
+  const startNew = () => ui.showCharacterCreator({ onStart: (c) => beginGame(createNewGame(undefined, c), true), onBack: () => void showTitle() });
 
   switch (result.status) {
     case 'ok':
@@ -315,6 +333,7 @@ function beginGame(next: GameState, isNew: boolean): void {
   if (state.driving !== null && !drivenVehicle(state)) state.driving = null;
   dashboard.hide();
   gfx.jumpTo(state.pos);
+  gfx.setPlayerLook(state.character.gender);
   gfx.syncVehicles(state.vehicles);
   gfx.zoomTo(64);
   gfx.setPlayer(state.pos, state.pos.heading, 0);
@@ -611,6 +630,15 @@ function teleport(x: number, z: number): void {
   if (!state) return;
   state.pos.x = x;
   state.pos.z = z;
+  // A driver takes the vehicle along
+  const driven = drivenVehicle(state);
+  if (driven) {
+    driven.x = x;
+    driven.z = z;
+    driven.speed = 0;
+    driven.trailer = undefined;
+    moveTrailer(driven);
+  }
   gfx.jumpTo({ x, z });
   gfx.setPlayer(state.pos, state.pos.heading, 0);
   walkSpeed = 0;
@@ -649,8 +677,11 @@ function updateWalk(dt: number): void {
     const len = Math.hypot(dx, dz) || 1;
     dx /= len;
     dz /= len;
-    const v = input.sprint() ? RUN_SPEED : WALK_SPEED;
-    const next = moveWalker(state.pos, dx * v * dt, dz * v * dt, 0.45);
+    const cheat = runtimeOf(state).cheats;
+    const v = (input.sprint() ? RUN_SPEED : WALK_SPEED) * (cheat.fastFeet ? 3 : 1);
+    const next = cheat.noClip
+      ? { x: Math.max(-(WORLD_HALF - 30), Math.min(WORLD_HALF - 30, state.pos.x + dx * v * dt)), z: Math.max(-(WORLD_HALF - 30), Math.min(WORLD_HALF - 30, state.pos.z + dz * v * dt)) }
+      : moveWalker(state.pos, dx * v * dt, dz * v * dt, 0.45);
     walkSpeed = Math.hypot(next.x - state.pos.x, next.z - state.pos.z) / dt;
     state.pos.x = next.x;
     state.pos.z = next.z;
@@ -1081,8 +1112,50 @@ function toggleUtilityView(): void {
 
 /** The weather cheats act on the picture only. */
 function setCheatWeather(mode: WeatherMode): void {
-  gfx.atmosphere.setWeather(mode === 'normal');
-  gfx.atmosphere.forceRain(mode === 'always' ? 0.9 : 0);
+  if (!state) return;
+  runtimeOf(state).weatherOverride =
+    mode === 'normal' ? null
+    : mode === 'none' ? { rain: 0, snow: 0, storm: 0, cloud: 0.2, anomaly: null, anomalyLevel: 0 }
+    : mode === 'always' ? { rain: 0.9, snow: 0, storm: 0, cloud: 0.85 }
+    : mode === 'storm' ? { rain: 1, snow: 0, storm: 1, wind: 0.9, cloud: 1 }
+    : { rain: 0, snow: 0.9, storm: 0, cloud: 0.85 };
+}
+
+const TITLE_WEATHER = { rain: 0, snow: 0, storm: 0, wind: 0.2, cloud: 0.25, yearPhase: 0.4, snowCover: 0 };
+
+function weatherIconFor(w: Weather, part: string): string {
+  if (w.storm > 0.5) return 'CloudLightning';
+  if (w.snow > 0.12) return 'CloudSnow';
+  if (w.rain > 0.12) return 'CloudRain';
+  if (w.anomaly === 'heatwave') return 'Thermometer';
+  if (w.anomaly === 'coldsnap') return 'Snowflake';
+  if (w.cloud > 0.6) return 'Cloud';
+  return part === 'night' ? 'Moon' : part === 'dawn' ? 'Sunrise' : part === 'dusk' ? 'Sunset' : 'Sun';
+}
+
+function handleWear(id: string): void {
+  if (!state) return;
+  const r = wearItem(state, id);
+  if (!r.ok) {
+    ui.toast(r.reason);
+    audio.error();
+    return;
+  }
+  audio.place();
+  refreshSurvival();
+  schedulePersist();
+}
+
+function handleTakeOff(slot: Slot): void {
+  if (!state) return;
+  const r = takeOffItem(state, slot);
+  if (!r.ok) {
+    ui.toast(r.reason);
+    return;
+  }
+  audio.place();
+  refreshSurvival();
+  schedulePersist();
 }
 
 const cheatPictureHost = { setWeather: setCheatWeather, setCarsHidden: (hidden: boolean) => gfx.traffic?.setCarsHidden(hidden) };
@@ -1099,8 +1172,11 @@ function runCheat(raw: string): string {
   const host = {
     state,
     ...cheatPictureHost,
+    teleport: (x: number, z: number) => teleport(x, z),
+    getWaypoint: () => waypoint,
     changed: () => {
       if (!state) return;
+      gfx.syncVehicles(state.vehicles);
       gfx.syncPieces(state.pieces, gridOf(state));
       refreshSurvival();
       refreshPiecePanel();
@@ -1646,6 +1722,9 @@ function refreshSurvival(): void {
   flushSurvival(state);
   advice = advise(state);
   vitals.update(state, advice);
+  const wxNow = currentWeather(state);
+  const exp = exposureNow(state, wxNow);
+  characterPanel.update(state, exp, `It feels like ${Math.round(exp.felt)}\u00b0C out here.`);
   advisor.update(state, advice);
 
   const warnings = new Map<number, IssueKind>();
@@ -1660,6 +1739,30 @@ function refreshSurvival(): void {
   }
   gfx.setWarnings(warnings);
   gfx.setLinks(topologyOf(state).links);
+  gfx.setBaseLights(litSources(state));
+}
+
+/** Give the picture the weather the rules are using right now. */
+function showWeather(s: GameState): void {
+  const wx = currentWeather(s);
+  gfx.setWeather({ rain: wx.rain, snow: wx.snow, storm: wx.storm, wind: wx.wind, cloud: wx.cloud, yearPhase: wx.yearPhase, snowCover: snowCover(wx) });
+}
+
+/** The lamps, floodlights and fires on the player's land that are working right now. A lamp with no power gives no light. */
+function litSources(s: GameState): LightSource[] {
+  const grid = gridOf(s);
+  if (!grid) return [];
+  const issues = runtimeOf(s).issues;
+  const out: LightSource[] = [];
+  for (const p of s.pieces) {
+    if (p.progress < 1) continue;
+    const kind = p.type === 'lamp_post' ? 'lamp' : p.type === 'floodlight_tower' ? 'flood' : p.type === 'fire_pit' ? 'fire' : null;
+    if (!kind) continue;
+    if (kind !== 'fire' && (issues.get(p.id) ?? []).some((i) => i.kind === 'power' || i.kind === 'fuel')) continue;
+    const c = pieceCenter(grid, p.type, p.cx, p.cz, p.rot);
+    out.push({ x: c.x, z: c.z, y: kind === 'flood' ? 5.7 : kind === 'lamp' ? 4.3 : 0.8, kind });
+  }
+  return out;
 }
 
 function handleAdvice(a: AdviceAction): void {
@@ -1766,6 +1869,8 @@ function frame(now: number): void {
 
   if (state) {
     const unread = state.messages.filter((m) => m.id > seenMsgId && m.kind !== 'order').length;
+    const wx = currentWeather(state);
+    showWeather(state);
     gfx.render(screen === 'play' ? renderDt : 0, visualSeconds(state));
     ui.setPrompt(promptFor(state));
     const searching = activeSearch(state);
@@ -1791,13 +1896,14 @@ function frame(now: number): void {
       waypoint: waypointText(),
       pack: packWeight(state) > 0 ? `${Math.round(packWeight(state))} / ${PACK_KG} kg` : null,
       dayPart: dayPart(hourOf(state.worldSeconds)),
-      raining: gfx.atmosphere.rain > 0.15,
+      weather: { text: `${SEASON_NAMES[wx.season]}, ${Math.round(wx.temp)}\u00b0C, ${wx.label}`, icon: weatherIconFor(wx, dayPart(hourOf(state.worldSeconds))) },
       muted: audio.isMuted,
       speed,
       speedHeld: speed > 1 && effectiveSpeed() === 1,
     });
     if (drawer.isOpen && drawer.currentTab === 'news') seenMsgId = latestMsgId(state);
   } else {
+    gfx.setWeather(TITLE_WEATHER);
     gfx.render(0, worldSecondsAt(1, 11));
   }
 }
@@ -2039,16 +2145,48 @@ if (import.meta.env.DEV) {
         birds: gfx.atmosphere.birdCount,
         fireflies: gfx.atmosphere.firefliesShown,
         rain: gfx.atmosphere.rain,
+        snow: gfx.atmosphere.snow,
+        storm: gfx.atmosphere.storm,
+        strikes: gfx.atmosphere.strikes,
+        flash: gfx.atmosphere.flash,
+        lights: gfx.lightInfo(),
       };
     },
     /** Run the traffic, clouds and rain forward by some seconds (for testing). */
     advanceScenery(seconds: number) {
-      if (state) gfx.advanceScenery(seconds, state.worldSeconds);
+      if (!state) return;
+      showWeather(state);
+      gfx.advanceScenery(seconds, state.worldSeconds);
     },
     /** Make it rain (0 to 1) or stop, and stop random showers. */
     setRain(level: number) {
-      gfx.atmosphere.setWeather(false);
-      gfx.atmosphere.forceRain(level);
+      if (!state) return;
+      runtimeOf(state).weatherOverride =
+        level > 0 ? { rain: level, snow: 0, storm: 0, cloud: Math.max(0.5, level) } : { rain: 0, snow: 0, storm: 0, cloud: 0.2, anomaly: null, anomalyLevel: 0 };
+    },
+    /** The weather and what it does to the character (for testing). */
+    weather() {
+      if (!state) return null;
+      const w = currentWeather(state);
+      return JSON.parse(JSON.stringify({ w, e: exposureNow(state, w), wet: state.wet, outfit: state.outfit, character: state.character, health: state.player.health }));
+    },
+    /** Take over the weather with these values, or give it back with null (for testing). */
+    setWeatherOverride(o: Partial<Weather> | null) {
+      if (state) runtimeOf(state).weatherOverride = o;
+    },
+    /** Move the calendar by some days (for testing). */
+    shiftCalendar(days: number) {
+      if (state) state.calendarShift += days;
+    },
+    wear(id: string) {
+      return state ? wearItem(state, id) : null;
+    },
+    takeOff(slot: Slot) {
+      return state ? takeOffItem(state, slot) : null;
+    },
+    /** Make the lightning strike at a distance from the player (for testing). */
+    strike(distance: number) {
+      return state ? lightningStrike(state, distance) : 0;
     },
     /** Put items straight into storage (for testing). */
     give(itemId: string, qty = 1) {

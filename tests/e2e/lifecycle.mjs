@@ -19,6 +19,7 @@ const settle = async (ms = 700) => { await G(() => window.__game.settleCamera())
 await page.goto(`http://localhost:${process.env.PORT || 5173}/?quality=low`);
 await page.waitForTimeout(2500);
 await page.getByText('New Game').click();
+await page.getByRole('button', { name: 'Start game' }).click();
 await page.waitForTimeout(700);
 await page.evaluate(() => window.__game.survivalOff(true));
 await page.waitForTimeout(1500);
@@ -106,14 +107,14 @@ check('HUD shows the sun in the morning', partDay === 'Day' || partDay === 'Dawn
 
 // ---- Rain
 await G(() => window.__game.skipToDay(2, 13));
-await G(() => window.__game.setRain(1));
+await G(() => window.__game.setWeatherOverride({ rain: 1, snow: 0, storm: 0.9, cloud: 1, wind: 0.8, temp: 14, anomaly: null, anomalyLevel: 0 }));
 await G(() => window.__game.advanceScenery(40));
 await page.waitForTimeout(3500);
 s = await scenery();
 const rainy = await audio();
 check('rain falls', s.rain > 0.9, `(${s.rain.toFixed(2)})`);
 check('rain is heard', rainy.levels.rain > 0.2, `(level ${rainy.levels.rain?.toFixed(3)})`);
-check('thunder rumbles in heavy rain', rainy.stats.thunder >= 1, `(${rainy.stats.thunder})`);
+check('thunder rumbles in a storm', rainy.stats.thunder >= 1, `(${rainy.stats.thunder})`);
 const weatherShown = await page.locator('.hud .weather').isVisible();
 check('HUD shows it is raining', weatherShown);
 await settle(800);

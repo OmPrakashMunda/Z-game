@@ -66,7 +66,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: .05em; text-t
 /* =====================================================================================================================
    Plates: every floating panel
    ===================================================================================================================== */
-.vitals, .advisor, .place-panel, .expand-panel, .architect, .cargo-panel, .house-search, .dash, .build-bar, .modal, .card, .drawer, .dock, .tooltip, .travel {
+.vitals, .advisor, .character, .place-panel, .expand-panel, .architect, .cargo-panel, .house-search, .dash, .build-bar, .modal, .card, .drawer, .dock, .tooltip, .travel {
   position: relative;
   background:
     var(--rivet) 6px 6px / 12px 12px no-repeat,
@@ -585,3 +585,41 @@ input.qty::-webkit-inner-spin-button { display: none; }
 .cargo-line { flex-wrap: nowrap; }
 .cargo-line .dim:nth-child(2) { flex: 1 1 auto; }
 .cargo-line .mini-btn { flex: none; }
+
+/* ---- Character panel and the character creator ---- */
+.character { padding: 8px 12px 10px; font-size: 14px; }
+.char-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 2px 0 6px; border: 0; background: transparent; color: var(--amber); cursor: pointer; font: 700 17px var(--font-display); letter-spacing: .08em; text-transform: uppercase; }
+.char-head .spacer { flex: 1; }
+.char-name { color: var(--paper); }
+.char-meters { display: flex; flex-direction: column; gap: 5px; margin-bottom: 6px; }
+.char-meter { display: flex; align-items: center; gap: 7px; color: var(--amber); }
+.char-meter-label { width: 36px; font: 600 13px var(--font-display); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+.char-meter b { min-width: 34px; text-align: right; color: var(--paper); font: 700 14px var(--font-display); }
+.char-bar { flex: 1; height: 11px; background: #0d0f0a; border: 2px solid var(--ink); box-shadow: inset 0 0 0 1px #2c3125; }
+.char-fill { display: block; height: 100%; }
+.char-fill.warm { background: linear-gradient(180deg, #ffb35c, #d0682a); }
+.char-fill.dry { background: linear-gradient(180deg, #6cc4ff, #2a8fb8); }
+.char-status { display: flex; align-items: center; gap: 6px; color: var(--dim); font: 500 13px var(--font-ui); }
+.char-status.bad { color: #ffb4a0; }
+.char-loss { margin-top: 4px; font: 500 13px/1.3 var(--font-ui); color: #ffb4a0; }
+.char-slots { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.char-slot { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border: 2px solid var(--ink); background: linear-gradient(180deg, #252a1e, #1b1e16); color: var(--paper); cursor: pointer; text-align: left; font: 500 14px var(--font-ui); }
+.char-slot.active, .char-slot:hover { border-color: var(--amber); }
+.char-slot-name { width: 46px; color: var(--dim); font: 600 12px var(--font-display); letter-spacing: .1em; text-transform: uppercase; }
+.char-slot-item { flex: 1; }
+.char-slot-nums { color: var(--dim); font: 600 12px var(--font-display); }
+.char-picker { padding: 6px 8px; background: #14170f; border: 2px solid var(--ink); }
+.char-hint { margin-top: 6px; font: 400 12px var(--font-ui); color: var(--dim); }
+.creator { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 4px; text-align: left; }
+.creator-label { font: 700 13px var(--font-display); letter-spacing: .2em; text-transform: uppercase; color: var(--amber); }
+.name-input { padding: 9px 12px; font: 600 20px var(--font-display); letter-spacing: .04em; color: var(--paper); background: #0d0f0a; border: 2px solid var(--ink); box-shadow: inset 0 0 0 1px #2c3125; outline: 0; }
+.name-input:focus { border-color: var(--amber); }
+.gender-row { display: flex; gap: 10px; }
+.gender-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 8px; border: 2px solid var(--ink); background: linear-gradient(180deg, #343a2b, #262a1f); color: var(--dim); cursor: pointer; font: 700 16px var(--font-display); letter-spacing: .12em; text-transform: uppercase; }
+.gender-btn.active { color: #1a1204; background: linear-gradient(180deg, #ffc659, var(--amber-deep)); }
+
+/* Keep the top bar on one line on ordinary screens */
+@media (max-width: 1500px) {
+  .hud { gap: 12px; }
+  .hud .days-left { display: none; }
+}

@@ -18,6 +18,7 @@ const P = () => G(() => JSON.parse(JSON.stringify(window.__game.player())));
 await page.goto(`http://localhost:${process.env.PORT || 5173}/?quality=low`);
 await page.waitForTimeout(2500);
 await page.getByText('New Game').click();
+await page.getByRole('button', { name: 'Start game' }).click();
 await page.waitForTimeout(800);
 await G(() => { window.__game.survivalOff(true); window.__game.setRain(0); });
 await page.waitForTimeout(1200);

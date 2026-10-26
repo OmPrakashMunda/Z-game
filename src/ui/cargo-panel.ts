@@ -97,7 +97,7 @@ export class CargoPanel {
       for (const [id, n] of stored) {
         const item = itemById(id);
         const w = weightOf(id);
-        const fits = Math.min(n, Math.floor(loadRoom(v) / w + 1e-6));
+        const fits = Math.min(n, Math.floor(loadRoom(v, state) / w + 1e-6));
         const row = el('div', 'line cargo-line');
         row.append(itemChip(item, 16), el('span', 'dim', item.name), el('b', undefined, `x${n}`), el('span', 'dim', `${w} kg each`));
         row.append(

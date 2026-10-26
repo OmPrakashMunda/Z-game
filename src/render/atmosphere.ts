@@ -2,10 +2,10 @@ import * as THREE from 'three';
 
 /**
  * Living scenery around the camera: drifting cloud shadows, birds crossing by day, fireflies among the trees at
- * night, and occasional rain. It is all decoration. Nothing here is saved or affects the rules.
+ * night, and the weather the game's rules produce: smoothed rain, snow, wind, cloud and storm, with lightning. The rain and snow
+ * themselves are painted over the screen by weatherfx.ts. Nothing here is saved.
  */
 
-const RAIN_COUNT = 900;
 const FIREFLY_COUNT = 90;
 const AREA = 60; // half-size in meters of the box that follows the camera
 
@@ -63,8 +63,18 @@ interface Bird {
 }
 
 export class Atmosphere {
-  /** How hard it is raining right now, 0 to 1. */
+  /** The weather as it looks right now. Each value eases toward what the game's weather says. */
   rain = 0;
+  snow = 0;
+  storm = 0;
+  wind = 0.2;
+  cloud = 0.3;
+  /** The brightness of a lightning flash right now, 0 to 1. */
+  flash = 0;
+  /** How many strikes there have been, for tests. */
+  strikes = 0;
+  /** Called when lightning strikes the ground: where, in map meters. */
+  onLightning: ((x: number, z: number) => void) | null = null;
 
   private readonly group = new THREE.Group();
   private readonly clouds: Cloud[] = [];
@@ -75,11 +85,6 @@ export class Atmosphere {
   private readonly birdMat = new THREE.MeshBasicMaterial({ color: 0x232830, side: THREE.DoubleSide });
   private nextBird = 4;
 
-  private readonly rainGeo = new THREE.BufferGeometry();
-  private readonly rainPos = new Float32Array(RAIN_COUNT * 6);
-  private readonly rainLines: THREE.LineSegments;
-  private readonly rainMat = new THREE.LineBasicMaterial({ color: 0xbcd4ff, transparent: true, opacity: 0, depthWrite: false });
-
   private readonly flyGeo = new THREE.BufferGeometry();
   private readonly flyPos = new Float32Array(FIREFLY_COUNT * 3);
   private readonly flyCol = new Float32Array(FIREFLY_COUNT * 3);
@@ -87,10 +92,12 @@ export class Atmosphere {
   private readonly flies: THREE.Points;
 
   private time = 0;
-  private rainTarget = 0;
-  private rainTimer = 90 + Math.random() * 120; // seconds until the next shower
-  private weatherOn = true;
-
+  private goal = { rain: 0, snow: 0, storm: 0, wind: 0.2, cloud: 0.3 };
+  private nextStrike = 12;
+  private flashAge = 99;
+  private readonly boltMat = new THREE.LineBasicMaterial({ color: 0xdfe8ff, transparent: true, opacity: 1, depthWrite: false, depthTest: false });
+  private readonly bolts: THREE.Line[] = [];
+  private boltAge = 99;
   constructor(scene: THREE.Scene) {
     scene.add(this.group);
 
@@ -105,19 +112,15 @@ export class Atmosphere {
       this.clouds.push({ mesh, speed: 2 + Math.random() * 2.5 });
     }
 
-    // Rain: each drop is a short slanted line that falls and wraps around inside a box
-    for (let i = 0; i < RAIN_COUNT; i++) {
-      const x = (Math.random() - 0.5) * 2 * AREA;
-      const y = Math.random() * 30;
-      const z = (Math.random() - 0.5) * 2 * AREA;
-      this.rainPos.set([x, y, z, x + 0.12, y - 1.6, z + 0.08], i * 6);
+    // Lightning bolts: three jagged lines side by side, so the flash has some thickness
+    for (let i = 0; i < 3; i++) {
+      const line = new THREE.Line(new THREE.BufferGeometry(), this.boltMat);
+      line.frustumCulled = false;
+      line.visible = false;
+      line.renderOrder = 50;
+      this.group.add(line);
+      this.bolts.push(line);
     }
-    this.rainGeo.setAttribute('position', new THREE.BufferAttribute(this.rainPos, 3));
-    this.rainLines = new THREE.LineSegments(this.rainGeo, this.rainMat);
-    this.rainLines.frustumCulled = false;
-    this.rainLines.visible = false;
-    this.group.add(this.rainLines);
-
     // Fireflies
     for (let i = 0; i < FIREFLY_COUNT; i++) {
       this.flySeed.set([Math.random() * 100, Math.random() * 100, Math.random() * 6.28, 0.5 + Math.random()], i * 4);
@@ -137,45 +140,91 @@ export class Atmosphere {
     this.group.add(this.flies);
   }
 
-  /** Turn random showers on or off. Tests use this to control the weather. */
-  setWeather(on: boolean): void {
-    this.weatherOn = on;
-    if (!on) this.rainTarget = 0;
+  /** Tell the atmosphere what the weather is. The picture eases toward it over a few seconds. */
+  setWeather(w: { rain: number; snow: number; storm: number; wind: number; cloud: number }): void {
+    this.goal = { ...w };
   }
 
-  /** Make it rain (or stop) right now. */
-  forceRain(level: number): void {
-    this.rainTarget = level;
-    this.rainTimer = level > 0 ? 120 : 200;
+  /** How dark and heavy the sky is, for dimming the light. */
+  get gloom(): number {
+    return Math.max(this.rain, this.snow * 0.8, this.cloud * 0.65, this.storm);
   }
-
   update(dt: number, target: THREE.Vector3, daylight: number, forest: number): void {
     dt = Math.min(dt, 0.1);
     this.time += dt;
     this.updateWeather(dt);
+    this.updateLightning(dt, target);
     this.updateClouds(dt, target, daylight);
     this.updateBirds(dt, target, daylight);
-    this.updateRain(dt, target);
     this.updateFireflies(target, daylight, forest);
   }
 
   private updateWeather(dt: number): void {
-    this.rainTimer -= dt;
-    if (this.weatherOn && this.rainTimer <= 0) {
-      if (this.rainTarget === 0) {
-        this.rainTarget = 0.5 + Math.random() * 0.5;
-        this.rainTimer = 60 + Math.random() * 100; // how long the shower lasts
-      } else {
-        this.rainTarget = 0;
-        this.rainTimer = 180 + Math.random() * 300; // dry spell
-      }
-    }
-    this.rain += (this.rainTarget - this.rain) * (1 - Math.exp(-dt / 5));
-    if (this.rain < 0.005 && this.rainTarget === 0) this.rain = 0;
+    const ease = (now: number, goal: number, seconds: number) => {
+      const next = now + (goal - now) * (1 - Math.exp(-dt / seconds));
+      return Math.abs(next - goal) < 0.004 ? goal : next;
+    };
+    this.rain = ease(this.rain, this.goal.rain, 5);
+    this.snow = ease(this.snow, this.goal.snow, 5);
+    this.storm = ease(this.storm, this.goal.storm, 4);
+    this.wind = ease(this.wind, this.goal.wind, 4);
+    this.cloud = ease(this.cloud, this.goal.cloud, 10);
   }
 
+  /** In a storm the sky flashes now and then. The strike lands somewhere near the camera. */
+  private updateLightning(dt: number, target: THREE.Vector3): void {
+    this.flashAge += dt;
+    this.boltAge += dt;
+    // Two quick pulses, then a slow fade
+    const a = this.flashAge;
+    this.flash = a < 0.07 ? 1 : a < 0.13 ? 0.25 : a < 0.2 ? 0.9 : a < 0.7 ? 0.9 * Math.exp(-(a - 0.2) * 6) : 0;
+    if (this.flash < 0.01) this.flash = 0;
+    const showBolt = this.boltAge < 0.28;
+    this.boltMat.opacity = showBolt ? 1 - this.boltAge / 0.28 : 0;
+    for (const b of this.bolts) b.visible = showBolt;
+    if (this.storm < 0.3) {
+      this.nextStrike = Math.max(this.nextStrike, 4);
+      return;
+    }
+    this.nextStrike -= dt;
+    if (this.nextStrike > 0) return;
+    this.nextStrike = (26 - 20 * this.storm) * (0.6 + Math.random() * 0.9);
+    // Mostly out in the distance, now and then close
+    const close = Math.random() < 0.12;
+    const r = close ? 4 + Math.random() * 14 : 25 + Math.random() * 75;
+    const angle = Math.random() * Math.PI * 2;
+    const x = target.x + Math.cos(angle) * r;
+    const z = target.z + Math.sin(angle) * r;
+    this.flashAge = 0;
+    this.boltAge = 0;
+    this.buildBolt(x, z);
+    this.strikes++;
+    this.onLightning?.(x, z);
+  }
+
+  private buildBolt(x: number, z: number): void {
+    this.bolts.forEach((line, k) => {
+      const pts: THREE.Vector3[] = [];
+      const top = 90;
+      let px = x + (Math.random() - 0.5) * 6;
+      let pz = z + (Math.random() - 0.5) * 6;
+      const steps = 14;
+      for (let i = 0; i <= steps; i++) {
+        const y = top * (1 - i / steps);
+        pts.push(new THREE.Vector3(px + k * 0.25, y, pz + k * 0.25));
+        px += (Math.random() - 0.5) * (i < steps - 1 ? 9 : 0);
+        pz += (Math.random() - 0.5) * (i < steps - 1 ? 9 : 0);
+        if (i === steps - 1) {
+          px = x;
+          pz = z;
+        }
+      }
+      line.geometry.dispose();
+      line.geometry = new THREE.BufferGeometry().setFromPoints(pts);
+    });
+  }
   private updateClouds(dt: number, target: THREE.Vector3, daylight: number): void {
-    this.cloudMat.opacity = 0.2 * daylight * (1 + this.rain * 0.9);
+    this.cloudMat.opacity = Math.min(0.55, 0.2 * daylight * (0.6 + this.cloud * 1.8));
     for (const c of this.clouds) {
       c.mesh.position.x += c.speed * dt;
       c.mesh.position.z += c.speed * 0.35 * dt;
@@ -236,33 +285,6 @@ export class Atmosphere {
         this.birds.splice(i, 1);
       }
     }
-  }
-
-  private updateRain(dt: number, target: THREE.Vector3): void {
-    const active = this.rain > 0.02;
-    this.rainLines.visible = active;
-    if (!active) return;
-    this.rainMat.opacity = 0.6 * Math.min(1, this.rain * 1.4);
-    this.rainGeo.setDrawRange(0, Math.floor(RAIN_COUNT * Math.min(1, 0.25 + this.rain)) * 2);
-    const fall = 38 * dt;
-    const p = this.rainPos;
-    for (let i = 0; i < RAIN_COUNT; i++) {
-      const o = i * 6;
-      p[o + 1] -= fall;
-      p[o + 4] -= fall;
-      if (p[o + 4] < 0) {
-        // Back to the top at a fresh spot around the camera
-        const x = target.x + (Math.random() - 0.5) * 2 * AREA;
-        const z = target.z + (Math.random() - 0.5) * 2 * AREA;
-        p[o] = x;
-        p[o + 1] = 30 + Math.random() * 6;
-        p[o + 2] = z;
-        p[o + 3] = x + 0.12;
-        p[o + 4] = p[o + 1] - 1.6;
-        p[o + 5] = z + 0.08;
-      }
-    }
-    this.rainGeo.attributes.position.needsUpdate = true;
   }
 
   private updateFireflies(target: THREE.Vector3, daylight: number, forest: number): void {

@@ -212,11 +212,12 @@ export function driveStep(state: GameState, v: OwnedVehicle, input: DriveInput, 
   const cheats = runtimeOf(state).cheats;
   const result: DriveResult = { damage: 0, ranDry: false, brokeDown: false };
   const surface = surfaceAt(v.x, v.z);
-  const maxV = topSpeedOn(v, surface);
+  const boost = cheats.turbo ? 2 : 1;
+  const maxV = topSpeedOn(v, surface) * boost;
   const wasRunning = v.hp > 0 && (def.fuel === 'none' || v.fuel > 0 || cheats.freeFuel);
   const running = wasRunning;
   const eff = effective(def, v.parts);
-  const acc = def.accel * (eff.trailer ? 0.8 : 1) * (surface === 'grass' ? 0.75 : 1);
+  const acc = def.accel * boost * (eff.trailer ? 0.8 : 1) * (surface === 'grass' ? 0.75 : 1);
 
   const throttle = running ? input.throttle : 0;
   if (throttle > 0) {
@@ -237,13 +238,13 @@ export function driveStep(state: GameState, v: OwnedVehicle, input: DriveInput, 
   const grip = Math.min(1, Math.abs(v.speed) / 3);
   const rate = (def.turn * input.steer * grip) / (1 + Math.abs(v.speed) / (def.topSpeed * 0.55));
   const turned = v.heading - rate * dt * Math.sign(v.speed || 1);
-  if (Math.abs(v.speed) > 0.05 && !hits(v, v.x, v.z, turned)) v.heading = turned;
+  if (Math.abs(v.speed) > 0.05 && (cheats.noClip || !hits(v, v.x, v.z, turned))) v.heading = turned;
 
   // Move, sliding along walls where possible
   const dx = Math.sin(v.heading) * v.speed * dt;
   const dz = Math.cos(v.heading) * v.speed * dt;
   const before = Math.abs(v.speed);
-  const free = (x: number, z: number) => Math.abs(x) < EDGE && Math.abs(z) < EDGE && !hits(v, x, z, v.heading);
+  const free = (x: number, z: number) => Math.abs(x) < EDGE && Math.abs(z) < EDGE && (cheats.noClip || !hits(v, x, z, v.heading));
   let moved = Math.hypot(dx, dz);
   if (free(v.x + dx, v.z + dz)) {
     v.x += dx;

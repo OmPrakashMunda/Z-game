@@ -23,6 +23,7 @@ const placeFrom = async (name) => { await openStorage(); await page.locator('.dr
 await page.goto(`http://localhost:${process.env.PORT || 5173}/?quality=low`);
 await page.waitForTimeout(2500);
 await page.getByText('New Game').click();
+await page.getByRole('button', { name: 'Start game' }).click();
 await page.waitForTimeout(1200);
 await page.evaluate(() => window.__game.survivalOff(true));
 await G(() => { window.__game.setRain(0); window.__game.ownPlot('warehouse'); window.__game.state.at = 'base'; window.__game.skipToDay(1, 13); });

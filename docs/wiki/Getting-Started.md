@@ -11,6 +11,10 @@ npm run dev
 
 Open the address Vite prints (usually http://localhost:5173). Click **New Game**, or **Continue** if you have a save.
 
+**New Game** opens the character creator. Type a name (or press **Another name** for a random one), choose **Man** or
+**Woman**, and press **Start game**. Both choices are saved with the game and shown in the character panel: see
+[Clothing and character](Clothing-and-Character.md).
+
 `.npmrc` sets `legacy-peer-deps=true` because one dependency is picky about peer versions. You do not need to do anything.
 
 ## Game speed
@@ -28,7 +32,8 @@ The game has no pause button. The clock stops only while the menu (`Esc`) is ope
 
 ## Your first ten minutes
 
-1. You start in the **Roadside Motel** with $500,000 and four people.
+1. You start in the **Roadside Motel** with $500,000 and four people. The weather is real from the first minute: out in
+   the rain your health slowly drops, so look at the top bar before a long walk ([Weather and seasons](Weather-and-Seasons.md)).
 2. Walk to **Hillside Realty** (about 115 m east along the main road: `D` to walk, `Shift` to run, or click the shop and press **Set waypoint**) and press `Space` at the door. Buy a base plot.
 3. Click **Online store** (or press `B`). Everything arrives at once, free. Buy a well, a tank, a garden bed and seeds.
 4. Walk to your land. Open storage (`I`) and press **Place** on the well. Click your land.

@@ -35,12 +35,13 @@ Typing in a text box never triggers a game key.
 | Click a shop or plot | Its card: how far away it is, and a button to set a waypoint (or to go in, if you are at the door) |
 | Click a vehicle | Its card: fuel, repairs, parts, cargo |
 | Click a placed structure | Open its card |
+| Click your name on the left | Open the character panel: warmth, dryness, and the five clothing slots (Wear and Take off) |
 | Click the corner map | Set a waypoint |
 | While placing: click | Place it |
 | While placing: drag | Lay a line (fences, walls, hedges, paths, spikes, trenches) |
 
 ## Top bar
-From left to right: day and countdown, phase tag, clock, weather, money, where you are, your waypoint (if any), what your
+From left to right: day and countdown, phase tag, clock, the season with the temperature and sky, money, where you are, your waypoint (if any), what your
 backpack holds (if anything), a **Cheats** tag when any cheat is on, then the view buttons (turn left, compass, turn right,
 tilt up, tilt down, cables and pipes), the speed buttons, sound and the menu.
 

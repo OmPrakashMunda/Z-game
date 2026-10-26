@@ -10,6 +10,8 @@
 - [Economy and shops](Economy-and-Shops.md)
 - [Building and placing](Building-and-Placing.md)
 - [Survival and utilities](Survival-and-Utilities.md)
+- [Weather and seasons](Weather-and-Seasons.md)
+- [Clothing and character](Clothing-and-Character.md)
 - [Upkeep and repairs](Upkeep-and-Repairs.md)
 - [Base Architect](Base-Architect.md)
 - [Camera and views](Camera-and-Views.md)

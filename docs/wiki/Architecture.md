@@ -6,6 +6,7 @@ Z-Game is a TypeScript single-page app built with Vite. Three.js draws the world
 src/
   main.ts            Wires everything together: game loop, input, screens, save and load, dev hooks
   cheats.ts          Cheat codes (session-only)
+  cheats-move.ts     The movement cheats: teleports, GIVECAR, FASTFEET, NOCLIP and the rest
   config.ts          Reads VITE_TIME_SCALE
   input.ts           Keyboard: held keys (walk, turn, tilt) and single presses
   style.css          The whole look of the UI
@@ -17,6 +18,7 @@ src/
     items.ts           Supplies, plus every structure as a product
     stores.ts          What each shop (and the online store) stocks
     structures.ts      Every placeable structure: size, price, strength, build time, look
+    clothing.ts        The 18 clothes: slot, warmth, dryness; the starter outfit
     survival.ts        Family needs; power, water and farm specs for each structure
     upkeep.ts          Wear rates, dirt, repair and upgrade materials
     info.ts            Product sheet text, derived from the tables above
@@ -37,6 +39,9 @@ src/
     cargo.ts           The backpack and a vehicle's load: picking up, loading, unloading
     colliders.ts       Which of your structures block walking and driving (gates and flat things do not)
     loot.ts            What is inside each house, doors, and the search itself
+    weather.ts         Seasons and weather as pure functions of the seed and the clock (not saved)
+    exposure.ts        What the weather does to the player: rain, cold, heat, lightning, shelter
+    outfit.ts          Putting clothes on and taking them off
   world/             The generated world outside the town (no graphics code)
     gen.ts             Roads, houses, fields and trees for each 80 m chunk, from a fixed seed
     collide.ts         What is solid near a point (including your structures); moving a walker with sliding
@@ -50,7 +55,9 @@ src/
     models.ts          Shared model parts
     lines.ts           Fence, wall and hedge geometry
     merge.ts           Merges static models by vertex colour to cut draw calls
-    atmosphere.ts      Clouds, birds, fireflies, rain
+    atmosphere.ts      Clouds, birds, fireflies, wind, lightning
+    weatherfx.ts       Rain and snow painted over the whole screen by one shader
+    seasonfx.ts        Leaf, ground and snow colours shared by the trees and the ground
     traffic.ts         Cars and traffic lights
     badges.ts          Warning signs
     edgefade.ts        Mist at the edge of the forest
@@ -104,6 +111,18 @@ load without a bump. When the shape really changes, bump the version and fill th
 - ``state.vehicles`` are the owned vehicles and ``state.driving`` the one being driven. ``driveStep`` in ``sim/vehicles.ts``
   moves it; the player's position follows.
 - ``state.pack`` is the backpack and ``state.looted`` the searched houses. A search in progress is a runtime note, not saved.
+
+## Weather, seasons and clothes
+- `weatherAt(seed, seconds, shift)` in `sim/weather.ts` gives the season, temperature, rain, snow, storm, cloud and wind for any
+  moment. Nothing about the weather is saved. `state.calendarShift` (saved) is only the days moved by the `SETSEASON` cheat.
+- `currentWeather(state)` is what everything reads. It applies `runtimeOf(state).weatherOverride`, which the weather cheats
+  and the `setRain` / `setWeatherOverride` dev hooks set. The picture and the rules always agree.
+- `stepExposure` (`sim/exposure.ts`) runs from `stepSim` after survival. Shelter means a shop door, the base or a closed
+  vehicle. `rt.disabled` (`survivalOff`) and `godMode` switch the damage off.
+- `GameState` has `character` (name, gender), `outfit` (five slots) and `wet`. `SAVE_VERSION` is 9; older saves get a
+  default survivor in a plain outfit.
+- Lamps, floodlights and fires that are working (`litSources` in `main.ts`) draw glow pools on the ground and feed six
+  point lights. The count of point lights never changes, so the shaders are not rebuilt.
 
 ## Grid and pieces
 

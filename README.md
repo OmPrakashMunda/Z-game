@@ -6,7 +6,7 @@ build a base that can feed, water and power your family, and be ready for the ou
 Low-poly 3D on a flat ground, drawn with procedural models. Runs in any modern browser. Written in TypeScript with
 [Three.js](https://threejs.org/) and [Vite](https://vite.dev/).
 
-> Status: the preparation phase, a big walkable world, vehicles and looting are playable. Zombies and base defence are not
+> Status: the preparation phase, a big walkable world, vehicles, looting, seasons and weather are playable. Zombies and base defence are not
 > built yet. See the [roadmap](docs/wiki/Roadmap.md).
 
 ## Play it
@@ -18,7 +18,7 @@ npm install
 npm run dev
 ```
 
-Open the address Vite prints (usually http://localhost:5173) and click **New Game**.
+Open the address Vite prints (usually http://localhost:5173), click **New Game**, then choose a name and **Man** or **Woman**.
 
 Other commands:
 
@@ -33,7 +33,9 @@ The world clock runs at `VITE_TIME_SCALE` game seconds per real second (default 
 hour). Change it in `.env` and restart `npm run dev`. You can also fast-forward in the game with the 4x and 12x buttons.
 
 ## How a game goes
-1. **Start at the motel** with $500,000 and a family of four, on foot in a world about 1.3 km across.
+1. **Start at the motel** with $500,000 and a family of four, on foot in a world about 1.3 km across. Seasons turn every 20 days.
+   Out in the rain your health slowly drops, snow and cold wear you down, and lightning is deadly: stay under cover in a storm,
+   and wear warm, dry clothes (shown in the character panel on the left) when you must go out.
 2. **Walk to Hillside Realty** (`WASD`, `Shift` to run, `Space` at the door) and buy a base plot: Old Farmstead, Warehouse
    Yard, Creekside Lot or Deep Woods Clearing. Click a place or the corner map to set a waypoint.
 3. **Shop** at the shop doors or from the online store (instant, free delivery, 6% convenience markup). Things sell out and
@@ -78,9 +80,9 @@ More in the [controls page](docs/wiki/Controls.md).
 Press the backquote key and type a code. Type `HELP` to list them. Cheats last for the current session only: leaving the
 game, reloading the page or loading a save switches them all off, and nothing about them is saved.
 
-`NONIGHT` `NODAY` `NORAIN` `RAINALLDAY` `NOBUILDTIME` `NOCARS` `NOWEAR` `FREEREPAIRS` `GODMODE` `FREESHOP`
-`FREEZETIME` `ENDLESSFUEL` `TOUGHCARS` `QUICKSEARCH`, and one-off codes `BUILDNOW` `MONEY` `SETMONEY n` `SKIPDAY` `SETDAY n` `FIXALL` `MAXUPGRADE` `GIVETOOLS`
-`STOCKUP` `FULLTANKS` `WOODSBASE`. See the [cheats page](docs/wiki/Cheats.md).
+`NONIGHT` `NODAY` `NORAIN` `RAINALLDAY` `STORM` `SNOWFALL` `NOBUILDTIME` `NOCARS` `NOWEAR` `FREEREPAIRS` `GODMODE` `FREESHOP`
+`FREEZETIME` `ENDLESSFUEL` `TOUGHCARS` `QUICKSEARCH` `FASTFEET` `NOCLIP` `BIGPACK` `TURBO`, and one-off codes `BUILDNOW` `MONEY` `SETMONEY n` `SKIPDAY` `SETDAY n` `FIXALL` `MAXUPGRADE` `GIVETOOLS`
+STOCKUP FULLTANKS WOODSBASE SETSEASON name GIVECLOTHES. For moving around: `BACKTOBASE` `GOTO place` `GOTOHOUSE` `GOTOCAR` `CALLCAR`\n`GOTOWAYPOINT` `COORDS x z` `WHEREAMI` `GIVECAR type` `REFUELALL` `REPAIRCARS` `EMPTYPACK` `RESETHOUSES`. See the [cheats page](docs/wiki/Cheats.md).
 
 ## Documentation
 
@@ -95,6 +97,8 @@ The wiki pages live in [`docs/wiki`](docs/wiki/Home.md):
 - [Economy and shops](docs/wiki/Economy-and-Shops.md)
 - [Building and placing](docs/wiki/Building-and-Placing.md)
 - [Survival and utilities](docs/wiki/Survival-and-Utilities.md)
+- [Weather and seasons](docs/wiki/Weather-and-Seasons.md)
+- [Clothing and character](docs/wiki/Clothing-and-Character.md)
 - [Upkeep and repairs](docs/wiki/Upkeep-and-Repairs.md)
 - [Base Architect](docs/wiki/Base-Architect.md)
 - [Camera and views](docs/wiki/Camera-and-Views.md)

@@ -42,7 +42,7 @@ Each top-level task is a milestone that ends with something playable.
   - [x] 3.6 Add trees, barrels, crates, cars, lamp posts and other props
     - _Requirements: 11.1, 11.2_
   - [x] 3.7 Checkpoint: click places, travel, and arrive (verified in a real browser for the realty, hardware store, supermarket and vehicle dealer)
-    - _Requirements: 4.1�4.7_
+    - _Requirements: 4.1-4.7_
 
 - [x] 4. M3: Economy and plot purchase
   - [x] 4.1 Define items, store catalogs, prices, stock and delivery times in `data/`
@@ -118,6 +118,22 @@ Each top-level task is a milestone that ends with something playable.
     - _Requirements: 14.3_
   - [x] 5a.5 Checkpoint: sound, traffic and weather respond to place, time and phase (verified in a real browser)
     - _Requirements: 14.1-14.9_
+
+- [x] 5b. Seasons, weather, clothing, the character and lighting
+  - [x] 5b.1 Add four 20-day seasons and weather (rain, snow, storms, heat and cold spells) as pure functions of the seed and the clock
+    - _Requirements: 15.1, 15.2_
+  - [x] 5b.2 Paint rain and snow over the whole screen; add lightning, thunder, wind; make trees and ground follow the season
+    - _Requirements: 15.3_
+  - [x] 5b.3 Add exposure: wetness, rain, cold, heat and lightning damage; shelter rules
+    - _Requirements: 15.4, 15.5_
+  - [x] 5b.4 Add 18 clothes in five slots, the character panel, shop stock, loot and product sheets
+    - _Requirements: 15.6_
+  - [x] 5b.5 Add the character creator (name and gender) and save version 9
+    - _Requirements: 15.7_
+  - [x] 5b.6 Light the ground around powered lamps, floodlights and fires
+    - _Requirements: 14.10_
+  - [x] 5b.7 Weather cheats, SETSEASON, GIVECLOTHES and the movement cheats; browser tests (weather.mjs, cheats-move.mjs)
+    - _Requirements: 15.8_
 
 - [x] 6. M5: Survival and production
   - [x] 6.1 Implement thirst, hunger and health with the move-in supplies, daily use, and starvation (fatigue and sleeping left for later)
@@ -196,3 +212,4 @@ Each top-level task is a milestone that ends with something playable.
 - Cloud saves with Supabase
 - Gemini AI Director behind a server function
 - Survivors, traders and raiders
+- Several maps and multiplayer servers (the world is already seed-based and the rules are separate from the screen)

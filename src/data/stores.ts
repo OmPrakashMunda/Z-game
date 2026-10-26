@@ -23,6 +23,7 @@ const PHYSICAL: Partial<Record<LocationId, StoreDef>> = {
       ['cooking_oil', 60], ['peanut_butter', 60], ['protein_bars', 50], ['salt_sugar', 80],
       ['bottled_water', 300], ['matches', 120], ['candles', 80], ['batteries', 80],
       ['toilet_paper', 70], ['soap', 70], ['trash_bags', 60],
+      ['tshirt', 40], ['hoodie', 25], ['jeans', 30], ['sneakers', 25], ['baseball_cap', 30], ['wool_beanie', 20],
     ],
   },
   hardware: {
@@ -33,6 +34,7 @@ const PHYSICAL: Partial<Record<LocationId, StoreDef>> = {
       ['padlock', 40], ['sandbags', 100], ['spikes', 50], ['toolbox', 15], ['axe', 20],
       ['shovel', 30], ['crowbar', 25], ['chainsaw', 8], ['flood_light', 30], ['wire_spool', 30],
       ['power_tools', 6], ['welding_kit', 4], ['spare_parts', 40],
+      ['jacket', 15], ['cargo_pants', 20], ['work_gloves', 40], ['hiking_boots', 15],
       // Ready-made structures the shop keeps on hand
       ['fence_wood', 60], ['fence_chain', 60], ['fence_barbed', 40], ['wall_cinder', 30],
       ['sandbag_wall', 60], ['gate_wood', 20], ['gate_steel', 8], ['container_20', 12],
@@ -54,6 +56,7 @@ const PHYSICAL: Partial<Record<LocationId, StoreDef>> = {
       ['pistol', 10], ['rifle', 6], ['shotgun', 8], ['ammo_9mm', 60], ['ammo_rifle', 40],
       ['shells', 50], ['bat', 15], ['machete', 15], ['body_armor', 6], ['binoculars', 8],
       ['gun_safe', 4],
+      ['parka', 6], ['winter_boots', 6], ['winter_gloves', 8], ['thermal_pants', 8],
     ],
   },
   farm_supply: {
@@ -63,6 +66,7 @@ const PHYSICAL: Partial<Record<LocationId, StoreDef>> = {
       ['irrigation_kit', 10], ['animal_feed', 40],
       ['greenhouse_kit', 5], ['rain_collector', 12], ['chicken_coop', 6], ['garden_bed', 20],
       ['beehive', 10], ['well_hand', 5],
+      ['raincoat', 15], ['rain_hat', 15], ['rain_pants', 12], ['rubber_boots', 20],
     ],
   },
   gas_station: {

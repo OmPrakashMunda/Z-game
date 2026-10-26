@@ -1,5 +1,6 @@
 import { CATEGORIES, itemById } from './items';
 import { isStructure, STRUCTURES, type StructureDef } from './structures';
+import { CLOTHING, SLOT_NAMES } from './clothing';
 import { attachmentForItem, PARTS_HP, vehicleForItem } from './vehicles';
 import {
   EAT_ORDER, FUEL_PER_ITEM, MEALS_PER_BASKET, MEALS_PER_ITEM, SURVIVAL, UTILITIES, WATER_PER_ITEM,
@@ -141,7 +142,11 @@ const SUPPLIES: Record<string, Supply> = {
 
 function supplyInfo(id: string): ProductInfo {
   const item = itemById(id);
-  const text = SUPPLIES[id] ?? { what: item.name, how: [], soon: 'Not used yet.' };
+  const wearText = (clothing: (typeof CLOTHING)[string]) => ({
+    what: `${item.name}, worn on the ${SLOT_NAMES[clothing.slot].toLowerCase()}.`,
+    how: ['Put it on from the character panel. It is not drawn on you: it changes how much the cold and the rain hurt.'],
+  });
+  const text = SUPPLIES[id] ?? (CLOTHING[id] ? wearText(CLOTHING[id]) : { what: item.name, how: [] as string[], soon: 'Not used yet.' });
   const stats: Stat[] = [{ label: 'Comes as', value: item.unit }];
   let works = false;
 
@@ -200,6 +205,16 @@ function supplyInfo(id: string): ProductInfo {
     if (att.tank) stats.push({ label: 'Extra tank', value: `${att.tank} L` });
     if (att.crash) stats.push({ label: 'Crash damage', value: `${Math.round(att.crash * 100)}%` });
     if (att.requires) stats.push({ label: 'Needs', value: 'a tow hitch' });
+  }
+  const clothes = CLOTHING[id];
+  if (clothes) {
+    works = true;
+    stats.push(
+      { label: 'Worn on', value: SLOT_NAMES[clothes.slot] },
+      { label: 'Warmth', value: `${num(clothes.warmth * 100)}%` },
+      { label: 'Keeps you dry', value: `${num(clothes.dry * 100)}%` },
+    );
+    if (clothes.warmth >= 0.6) stats.push({ label: 'In a heatwave', value: 'Too hot' });
   }
   if (id === 'spare_parts') {
     works = true;

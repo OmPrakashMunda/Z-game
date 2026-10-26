@@ -16,6 +16,7 @@ const G = (fn, arg) => page.evaluate(fn, arg);
 await page.goto(`http://localhost:${PORT}/?quality=low`);
 await page.waitForTimeout(2500);
 await page.getByText('New Game').click();
+await page.getByRole('button', { name: 'Start game' }).click();
 await page.waitForTimeout(1200);
 await G(() => { window.__game.survivalOff(true); window.__game.ownPlot('warehouse'); window.__game.state.at = 'base'; });
 await page.keyboard.press('KeyB');

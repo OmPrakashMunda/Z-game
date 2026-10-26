@@ -5,6 +5,8 @@ import { FOREST_KINDS, WORLD_HALF, type City, type LocationId, type PlotId, type
 import { forestAt } from '../world/gen';
 import { clearing, setClearing } from '../world/clearing';
 import { Streamer } from './streamer';
+import { WeatherFx } from './weatherfx';
+import { applySeasonGround, setSeason, skyTint } from './seasonfx';
 import { VehicleLayer } from './vehicles';
 import type { OwnedVehicle } from '../sim/vehicles';
 import { VEHICLES } from '../data/vehicles';
@@ -31,6 +33,24 @@ export interface MapPoint {
   x: number;
   z: number;
 }
+
+/** Something that gives light at night: a lamp post, a floodlight tower or a fire pit. */
+export interface LightSource {
+  x: number;
+  z: number;
+  /** Height of the lamp above the ground. */
+  y: number;
+  kind: 'lamp' | 'flood' | 'fire';
+}
+
+/** How the three kinds of light look: the colour, how far the real light reaches, how strong it is, and the pool it paints on the ground. */
+const LIGHT_LOOK = {
+  lamp: { color: 0xffd9a0, reach: 18, power: 110, pool: 15, glow: 0.6 },
+  flood: { color: 0xfff1d6, reach: 42, power: 520, pool: 38, glow: 0.7 },
+  fire: { color: 0xff8a3a, reach: 14, power: 70, pool: 12, glow: 0.55 },
+} as const;
+/** Real lights are costly, so only this many (the ones nearest the camera) are switched on at a time. */
+const REAL_LIGHTS = 6;
 
 export interface RendererHandlers {
   onHover(pick: PickResult | null, clientX: number, clientY: number): void;
@@ -100,6 +120,7 @@ const SUN_DAY = new THREE.Color(0xfff1d6);
 const SUN_LOW = new THREE.Color(0xff9b4d);
 const MOON = new THREE.Color(0x8fa8d8);
 const RAIN_SKY = new THREE.Color(0x5f6872);
+const FLASH_SKY = new THREE.Color(0xdce6ff);
 
 function smoothstep(a: number, b: number, x: number): number {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
@@ -212,12 +233,25 @@ export class GameRenderer {
   private readonly waypointPin = makePin(0xffc933);
   private readonly basePin = makePin(0x35c46b);
   /** The walking character, and the arrow that keeps it findable behind trees and roofs. */
-  private readonly playerRig: CharacterRig = makePlayer();
+  private playerRig: CharacterRig = makePlayer();
   private readonly playerArrow = new THREE.Mesh(
     new THREE.ConeGeometry(0.34, 0.7, 4).rotateX(Math.PI),
     new THREE.MeshBasicMaterial({ color: 0xff7a3a, depthTest: false, transparent: true }),
   );
   private playerPos: MapPoint = { x: 0, z: 8 };
+  /** Lit lamps, floodlights and fires on the player's land, and the street lamps in town. */
+  private baseLights: LightSource[] = [];
+  private townLights: LightSource[] = [];
+  private readonly pointLights: THREE.PointLight[] = [];
+  private readonly lightPools: THREE.InstancedMesh;
+  private readonly lightPoolMat = new THREE.MeshBasicMaterial({
+    map: makeGlowTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0,
+  });
+  private night = 0;
+  private lightClock = 0;
+  private weatherFx: WeatherFx | null = null;
+  private yearPhase = 0.4;
+  private snowCover = 0;
   /** Whether there is a player to follow (on foot or in a vehicle). */
   private hasPlayer = false;
   private vehicleLayer: VehicleLayer | null = null;
@@ -303,6 +337,17 @@ export class GameRenderer {
     this.scene.add(this.hoverHighlight.group, this.selectHighlight.group, this.footprintTile.group, this.waypointPin, this.basePin, this.playerRig.group, this.playerArrow);
     this.playerArrow.renderOrder = 20;
     this.atmosphere = new Atmosphere(this.scene);
+    this.weatherFx = new WeatherFx(this.scene);
+    for (let i = 0; i < REAL_LIGHTS; i++) {
+      const light = new THREE.PointLight(0xffd9a0, 0, 20, 2);
+      this.pointLights.push(light);
+      this.scene.add(light);
+    }
+    this.lightPools = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), this.lightPoolMat, 240);
+    this.lightPools.count = 0;
+    this.lightPools.frustumCulled = false;
+    this.lightPools.renderOrder = 3;
+    this.scene.add(this.lightPools);
     this.waypointPin.visible = false;
     this.basePin.visible = false;
     this.playerRig.group.visible = false;
@@ -329,7 +374,7 @@ export class GameRenderer {
     this.city = city;
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(WORLD_HALF * 2 + 400, WORLD_HALF * 2 + 400),
-      applyEdgeFade(new THREE.MeshStandardMaterial({ map: makeGrassTexture(), roughness: 1 })),
+      applySeasonGround(applyEdgeFade(new THREE.MeshStandardMaterial({ map: makeGrassTexture(), roughness: 1 }))),
     );
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
@@ -395,6 +440,7 @@ export class GameRenderer {
 
     // Soft pools of light on the ground under street lamps (fade in at night)
     const lamps = city.props.filter((p) => p.kind === 'lamp');
+    this.townLights = lamps.map((l) => ({ x: l.x + 0.85, z: l.z, y: 4.3, kind: 'lamp' as const }));
     const pools = new THREE.InstancedMesh(new THREE.PlaneGeometry(12, 12), lampPoolMat, lamps.length);
     lamps.forEach((l, i) => {
       m4.makeRotationX(-Math.PI / 2);
@@ -444,12 +490,13 @@ export class GameRenderer {
   }
 
   /** What the camera is looking at, for mixing the ambient sound. */
-  soundScene(): { forest: number; traffic: number; rain: number } {
+  soundScene(): { forest: number; traffic: number; rain: number; storm: number } {
     const cars = this.traffic ? this.traffic.countNear(this.target.x, this.target.z, 70) : 0;
     return {
       forest: forestAt(this.target.x, this.target.z),
       traffic: Math.min(1, cars / 6),
       rain: this.atmosphere.rain,
+      storm: this.atmosphere.storm,
     };
   }
 
@@ -474,6 +521,66 @@ export class GameRenderer {
     if (speed > 0.1) this.following = true;
   }
 
+  /** Give the picture the game's weather: rain, snow, storm and wind ease in, and the season tints the world. */
+  setWeather(w: { rain: number; snow: number; storm: number; wind: number; cloud: number; yearPhase: number; snowCover: number }): void {
+    this.atmosphere.setWeather(w);
+    this.yearPhase = w.yearPhase;
+    this.snowCover = w.snowCover;
+  }
+
+  /** Tell the renderer which lights on the player's land are working. They glow on the ground and light up the walls, trees and people near them. */
+  setBaseLights(lights: LightSource[]): void {
+    this.baseLights = lights;
+    const m = new THREE.Matrix4();
+    const c = new THREE.Color();
+    let n = 0;
+    const add = (x: number, z: number, size: number, color: number, strength: number) => {
+      if (n >= 240) return;
+      m.makeScale(size, 1, size).setPosition(x, 0.1, z);
+      this.lightPools.setMatrixAt(n, m);
+      this.lightPools.setColorAt(n, c.setHex(color).multiplyScalar(strength));
+      n++;
+    };
+    for (const l of lights) {
+      const look = LIGHT_LOOK[l.kind];
+      add(l.x, l.z, look.pool, look.color, look.glow);
+      // A floodlight also has a bright core under it
+      if (l.kind === 'flood') add(l.x, l.z, look.pool * 0.45, look.color, 0.55);
+    }
+    this.lightPools.count = n;
+    this.lightPools.instanceMatrix.needsUpdate = true;
+    if (this.lightPools.instanceColor) this.lightPools.instanceColor.needsUpdate = true;
+  }
+
+  /** How many working lights there are, how many are lit for real right now, and how many ground glows are drawn (for tests). */
+  lightInfo(): { sources: number; real: number; pools: number } {
+    return { sources: this.baseLights.length, real: this.pointLights.filter((l) => l.intensity > 0.01).length, pools: this.lightPools.count };
+  }
+
+  /** Light the nearest working lights for real, and fade the ground glow in with the dark. */
+  private updateLights(realDt: number): void {
+    this.lightPoolMat.opacity = Math.min(1, this.night * 1.2) * (1 - 0.15 * this.atmosphere.rain);
+    this.lightClock += realDt;
+    const t = this.target;
+    const all = [...this.baseLights, ...this.townLights];
+    all.sort((a, b) => (a.x - t.x) ** 2 + (a.z - t.z) ** 2 - ((b.x - t.x) ** 2 + (b.z - t.z) ** 2));
+    for (let i = 0; i < this.pointLights.length; i++) {
+      const light = this.pointLights[i];
+      const src = all[i];
+      if (!src || this.night < 0.05) {
+        light.intensity = 0;
+        continue;
+      }
+      const look = LIGHT_LOOK[src.kind];
+      // A fire flickers; the others hum along steadily
+      const flicker = src.kind === 'fire' ? 0.8 + 0.2 * Math.sin(this.lightClock * 13 + i) * Math.sin(this.lightClock * 7.3 + src.x) : 1;
+      light.position.set(src.x, src.y, src.z);
+      light.color.setHex(look.color);
+      light.distance = look.reach;
+      light.intensity = look.power * Math.min(1, this.night * 1.2) * flicker;
+    }
+  }
+
   /** Show the player's vehicles where they are. */
   syncVehicles(vehicles: readonly OwnedVehicle[]): void {
     this.vehicleLayer?.sync(vehicles, this.playerPos);
@@ -483,6 +590,17 @@ export class GameRenderer {
       const sideways = Math.abs(Math.sin(v.heading)) > 0.7;
       this.vehicleRects.set(v.id, { x: v.x, z: v.z, w: sideways ? d.length : d.width, d: sideways ? d.width : d.length });
     }
+  }
+
+  /** Give the walking character the look the player chose. */
+  setPlayerLook(gender: 'male' | 'female'): void {
+    const old = this.playerRig.group;
+    this.scene.remove(old);
+    this.playerRig = makePlayer(gender);
+    this.playerRig.group.visible = old.visible;
+    this.playerRig.group.position.copy(old.position);
+    this.playerRig.group.rotation.y = old.rotation.y;
+    this.scene.add(this.playerRig.group);
   }
 
   /** The camera stays on the player. */
@@ -1375,6 +1493,9 @@ export class GameRenderer {
     this.linkMaterials.lug.emissiveIntensity = 0.8 + 0.4 * Math.sin(this.time * 3);
     this.linkMaterials.cap.emissiveIntensity = 0.6 + 0.25 * Math.sin(this.time * 2);
     this.applyTimeOfDay(hourOf(worldSeconds));
+    setSeason(this.yearPhase, this.snowCover, Math.min(1, this.atmosphere.rain * 1.3 + this.atmosphere.snow * 0.3));
+    this.weatherFx?.update(realDt, { rain: this.atmosphere.rain, snow: this.atmosphere.snow, wind: this.atmosphere.wind, gloom: this.atmosphere.gloom, flash: this.atmosphere.flash, day }, this.container.clientWidth / Math.max(1, this.container.clientHeight));
+    this.updateLights(realDt);
     // The first frame must draw the shadow map (it does not exist until then); after that, every other frame
     if (this.frameCount++ % 2 === 0) this.renderer.shadowMap.needsUpdate = true;
     this.renderer.render(this.scene, this.camera);
@@ -1457,7 +1578,7 @@ export class GameRenderer {
     const ang = ((hour - 6) / 24) * Math.PI * 2; // 0 at 06:00, PI/2 at noon, PI at 18:00
     const elev = Math.sin(ang);
     const day = daylight(hour);
-    const rain = this.atmosphere.rain;
+    const rain = this.atmosphere.gloom;
     const lowSun = 1 - smoothstep(0.05, 0.45, Math.abs(elev));
 
     // The key light is the sun by day and the moon by night. Elevation is clamped so shadows never grow endless.
@@ -1469,15 +1590,16 @@ export class GameRenderer {
     this.sun.color.copy(MOON).lerp(sunColor, day);
     this.sun.intensity = THREE.MathUtils.lerp(1.1, 2.6, day) * (1 - 0.5 * rain);
 
-    this.hemi.intensity = THREE.MathUtils.lerp(0.75, 0.95, day) * (1 - 0.12 * rain);
+    this.hemi.intensity = THREE.MathUtils.lerp(0.75, 0.95, day) * (1 - 0.12 * rain) + this.atmosphere.flash * 2.2;
     this.hemi.color.set(0x2f4478).lerp(new THREE.Color(0xbfd9ff), day);
     this.hemi.groundColor.set(0x1a2236).lerp(new THREE.Color(0x4a5a3a), day);
 
-    const sky = NIGHT_SKY.clone().lerp(DAY_SKY, day).lerp(DUSK_SKY, lowSun * 0.55);
-    this.scene.background = sky.lerp(RAIN_SKY, rain * 0.7 * day);
+    const sky = NIGHT_SKY.clone().lerp(DAY_SKY, day).lerp(DUSK_SKY, lowSun * 0.55).multiply(skyTint);
+    this.scene.background = sky.lerp(RAIN_SKY, rain * 0.7 * day).lerp(FLASH_SKY, this.atmosphere.flash * 0.6);
     setEdgeColor(sky);
 
     const night = 1 - day;
+    this.night = night;
     glassMat.emissiveIntensity = night * 0.9;
     lampBulbMat.emissiveIntensity = night * 2.2;
     lampPoolMat.opacity = night * 0.55;

@@ -21,6 +21,7 @@ const BY_CATEGORY: Partial<Record<Category, number>> = {
   fuel: 17,
   weapons: 4,
   vehicles: 4,
+  clothing: 0.8,
 };
 
 const BY_ITEM: Record<string, number> = {
@@ -33,6 +34,7 @@ const BY_ITEM: Record<string, number> = {
   pistol: 1, rifle: 4, shotgun: 3.5, ammo_9mm: 1, ammo_rifle: 1.5, shells: 1.5, bat: 1, machete: 1, body_armor: 5, binoculars: 0.8, gun_safe: 60,
   seeds_veg: 0.5, seeds_corn: 0.5, seed_potatoes: 6, soil: 20, fertilizer: 18, animal_feed: 20, irrigation_kit: 8,
   spare_parts: 6, first_aid_kit: 2, surgical_kit: 3,
+  parka: 2.5, jacket: 1.6, raincoat: 1, hoodie: 0.8, hiking_boots: 2, rubber_boots: 1.8, winter_boots: 2.4, sneakers: 1, thermal_pants: 0.7, cargo_pants: 0.9, jeans: 0.8,
 };
 
 /** Kilograms per unit of an item. */

@@ -14,6 +14,8 @@ Day 30 the shops close and the outbreak begins.
 - [Economy and shops](Economy-and-Shops.md): money, stores, panic buying, returns, land
 - [Building and placing](Building-and-Placing.md): placing from storage, the structure card, moving and rotating
 - [Survival and utilities](Survival-and-Utilities.md): food, water, power and how they connect
+- [Weather and seasons](Weather-and-Seasons.md): the four seasons, rain, snow, storms, and what they do to you
+- [Clothing and character](Clothing-and-Character.md): the character creator, warmth, dryness, the eighteen clothes
 - [Upkeep and repairs](Upkeep-and-Repairs.md): wear, dirt, repairs, upgrades and tools
 - [Base Architect](Base-Architect.md): the one-click planner
 - [Camera and views](Camera-and-Views.md): turning, tilting, zooming and the utility view

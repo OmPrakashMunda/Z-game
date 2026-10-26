@@ -18,6 +18,7 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 await page.goto(`http://localhost:${PORT}/?quality=low`);
 await page.waitForTimeout(2500);
 await page.getByText('New Game').click();
+await page.getByRole('button', { name: 'Start game' }).click();
 await page.waitForTimeout(1200);
 await G(() => { window.__game.setRain(0); window.__game.snapCamera(0, 0); window.__game.settleCamera(); });
 await page.waitForTimeout(2500);

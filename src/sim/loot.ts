@@ -13,7 +13,7 @@ import { runtimeOf } from './utilities';
  * hold tools and hunting gear, and a few have already been picked clean.
  */
 
-type Tag = 'food' | 'water' | 'household' | 'medical' | 'tools' | 'fuel' | 'materials' | 'farm' | 'weapons' | 'parts';
+type Tag = 'food' | 'water' | 'household' | 'medical' | 'tools' | 'fuel' | 'materials' | 'farm' | 'weapons' | 'parts' | 'clothes';
 
 /** [item, fewest, most, weight, tag] */
 const TABLE: Array<[string, number, number, number, Tag]> = [
@@ -30,6 +30,11 @@ const TABLE: Array<[string, number, number, number, Tag]> = [
   ['nails', 1, 1, 2, 'materials'], ['screws', 1, 1, 2, 'materials'], ['padlock', 1, 1, 1, 'materials'], ['lumber', 1, 1, 1, 'materials'],
   ['sandbags', 1, 1, 1, 'materials'],
   ['spare_parts', 1, 1, 2, 'parts'],
+  ['tshirt', 1, 1, 3, 'clothes'], ['hoodie', 1, 1, 3, 'clothes'], ['jeans', 1, 1, 3, 'clothes'], ['sneakers', 1, 1, 2, 'clothes'],
+  ['baseball_cap', 1, 1, 2, 'clothes'], ['wool_beanie', 1, 1, 2, 'clothes'], ['jacket', 1, 1, 2, 'clothes'], ['raincoat', 1, 1, 1.5, 'clothes'],
+  ['rain_hat', 1, 1, 1, 'clothes'], ['rubber_boots', 1, 1, 1.2, 'clothes'], ['hiking_boots', 1, 1, 1.2, 'clothes'], ['work_gloves', 1, 1, 1.5, 'clothes'],
+  ['cargo_pants', 1, 1, 1.5, 'clothes'], ['thermal_pants', 1, 1, 0.8, 'clothes'], ['winter_gloves', 1, 1, 0.8, 'clothes'],
+  ['winter_boots', 1, 1, 0.6, 'clothes'], ['parka', 1, 1, 0.5, 'clothes'], ['rain_pants', 1, 1, 0.6, 'clothes'],
   ['seeds_veg', 1, 2, 2, 'farm'], ['seeds_corn', 1, 1, 1, 'farm'], ['animal_feed', 1, 1, 1, 'farm'], ['fertilizer', 1, 1, 1, 'farm'], ['seed_potatoes', 1, 1, 1, 'farm'],
   ['bat', 1, 1, 1, 'weapons'], ['machete', 1, 1, 0.6, 'weapons'], ['ammo_9mm', 1, 1, 0.8, 'weapons'], ['shells', 1, 1, 0.6, 'weapons'],
   ['pistol', 1, 1, 0.3, 'weapons'], ['rifle', 1, 1, 0.2, 'weapons'],
@@ -38,11 +43,11 @@ const TABLE: Array<[string, number, number, number, Tag]> = [
 for (const [id] of TABLE) if (!ITEMS[id]) throw new Error(`Loot table lists unknown item "${id}"`);
 
 const BIAS: Record<HouseType, Record<Tag, number>> = {
-  bungalow: { food: 1.2, water: 1, household: 1.3, medical: 1, tools: 0.6, fuel: 0.4, materials: 0.5, farm: 0.2, weapons: 0.3, parts: 0.4 },
-  family: { food: 1.2, water: 1, household: 1.1, medical: 1.1, tools: 1, fuel: 1, materials: 1, farm: 0.4, weapons: 0.4, parts: 1 },
-  villa: { food: 1, water: 1.2, household: 1, medical: 1.6, tools: 1.3, fuel: 1, materials: 0.8, farm: 0.2, weapons: 0.8, parts: 1 },
-  farmhouse: { food: 1.3, water: 1, household: 0.8, medical: 0.8, tools: 1.4, fuel: 2, materials: 1.2, farm: 3, weapons: 0.8, parts: 1.2 },
-  cabin: { food: 1, water: 1.2, household: 0.7, medical: 0.6, tools: 1.6, fuel: 0.8, materials: 1.6, farm: 0.3, weapons: 1.8, parts: 0.5 },
+  bungalow: { food: 1.2, water: 1, household: 1.3, medical: 1, tools: 0.6, fuel: 0.4, materials: 0.5, farm: 0.2, weapons: 0.3, parts: 0.4, clothes: 1.1 },
+  family: { food: 1.2, water: 1, household: 1.1, medical: 1.1, tools: 1, fuel: 1, materials: 1, farm: 0.4, weapons: 0.4, parts: 1, clothes: 1.2 },
+  villa: { food: 1, water: 1.2, household: 1, medical: 1.6, tools: 1.3, fuel: 1, materials: 0.8, farm: 0.2, weapons: 0.8, parts: 1, clothes: 1.4 },
+  farmhouse: { food: 1.3, water: 1, household: 0.8, medical: 0.8, tools: 1.4, fuel: 2, materials: 1.2, farm: 3, weapons: 0.8, parts: 1.2, clothes: 1.2 },
+  cabin: { food: 1, water: 1.2, household: 0.7, medical: 0.6, tools: 1.6, fuel: 0.8, materials: 1.6, farm: 0.3, weapons: 1.8, parts: 0.5, clothes: 1.5 },
 };
 
 function hashString(s: string): number {

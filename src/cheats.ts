@@ -5,6 +5,9 @@ import { stepSim } from './sim/step';
 import type { GameState } from './sim/state';
 import { maxHpFor } from './sim/upkeep';
 import { runtimeOf } from './sim/utilities';
+import { runMoveCheat } from './cheats-move';
+import { CLOTHING } from './data/clothing';
+import { SEASON_DAYS, SEASONS, YEAR_DAYS, calendarAt, type Season } from './sim/weather';
 
 /**
  * Cheat codes. Type them in the cheat box (press the backquote key).
@@ -13,7 +16,7 @@ import { runtimeOf } from './sim/utilities';
  * the two session settings below), so leaving the game, reloading the page or loading a save switches them all off.
  */
 
-export type WeatherMode = 'normal' | 'none' | 'always';
+export type WeatherMode = 'normal' | 'none' | 'always' | 'storm' | 'snow';
 
 /** The cheats that act on the picture rather than the rules. They are reset whenever a game is loaded or left. */
 export const session: { weather: WeatherMode; carsHidden: boolean } = { weather: 'normal', carsHidden: false };
@@ -29,6 +32,10 @@ export interface CheatHost {
   addFunds(): string;
   buildWoodsBase(): string;
   finishAll(): string;
+  /** Put the player (and the vehicle they are driving) at a spot at once. */
+  teleport(x: number, z: number): void;
+  /** The waypoint the player set, if any. */
+  getWaypoint(): { x: number; z: number; name: string } | null;
 }
 
 /** Switch every picture-only cheat off. Called when leaving a game or loading another one. */
@@ -55,9 +62,15 @@ export function activeCheats(state: GameState | null): string[] {
     if (c.freeFuel) out.push('ENDLESSFUEL');
     if (c.noDamage) out.push('TOUGHCARS');
     if (c.quickSearch) out.push('QUICKSEARCH');
+    if (c.fastFeet) out.push('FASTFEET');
+    if (c.noClip) out.push('NOCLIP');
+    if (c.bigPack) out.push('BIGPACK');
+    if (c.turbo) out.push('TURBO');
   }
   if (session.weather === 'none') out.push('NORAIN');
   if (session.weather === 'always') out.push('RAINALLDAY');
+  if (session.weather === 'storm') out.push('STORM');
+  if (session.weather === 'snow') out.push('SNOWFALL');
   if (session.carsHidden) out.push('NOCARS');
   return out;
 }
@@ -74,6 +87,8 @@ export const CHEAT_LIST: CheatInfo[] = [
   { code: 'NODAY', kind: 'switch', what: 'It is always the middle of the night.' },
   { code: 'NORAIN', kind: 'switch', what: 'It never rains.' },
   { code: 'RAINALLDAY', kind: 'switch', what: 'It rains all the time.' },
+  { code: 'STORM', kind: 'switch', what: 'A thunderstorm rages all the time, with lightning.' },
+  { code: 'SNOWFALL', kind: 'switch', what: 'It snows all the time.' },
   { code: 'NOBUILDTIME', kind: 'switch', what: 'Everything you place is finished at once.' },
   { code: 'NOCARS', kind: 'switch', what: 'Hides the traffic on the roads.' },
   { code: 'NOWEAR', kind: 'switch', what: 'Nothing wears out or gets dirty.' },
@@ -84,6 +99,10 @@ export const CHEAT_LIST: CheatInfo[] = [
   { code: 'ENDLESSFUEL', kind: 'switch', what: 'Vehicles use no fuel.' },
   { code: 'TOUGHCARS', kind: 'switch', what: 'Crashes do no damage to your vehicles.' },
   { code: 'QUICKSEARCH', kind: 'switch', what: 'Searching a house takes no time.' },
+  { code: 'FASTFEET', kind: 'switch', what: 'You walk and run three times as fast.' },
+  { code: 'NOCLIP', kind: 'switch', what: 'Walls, houses, trees and fences no longer stop you or your vehicles.' },
+  { code: 'BIGPACK', kind: 'switch', what: 'Your backpack and your vehicles carry any weight.' },
+  { code: 'TURBO', kind: 'switch', what: 'Vehicles are twice as fast and pick up speed twice as quickly.' },
   { code: 'BUILDNOW', kind: 'once', what: 'Finishes everything that is being built.' },
   { code: 'MONEY', kind: 'once', what: 'Adds $500,000.' },
   { code: 'SETMONEY n', kind: 'once', what: 'Sets your money to n dollars.' },
@@ -94,9 +113,24 @@ export const CHEAT_LIST: CheatInfo[] = [
   { code: 'GIVETOOLS', kind: 'once', what: 'Gives the four tools and plenty of repair materials.' },
   { code: 'STOCKUP', kind: 'once', what: 'Gives food, water, fuel, seeds and animal feed.' },
   { code: 'FULLTANKS', kind: 'once', what: 'Fills every water tank and battery.' },
+  { code: 'BACKTOBASE', kind: 'once', what: 'Takes you (and the vehicle you are driving) to the middle of your land.' },
+  { code: 'GOTO place', kind: 'once', what: 'Takes you to a place: base, motel, realty, hardware, supermarket, pharmacy, guns, farmsupply, gas, dealer, woods, farmstead, warehouse or creekside.' },
+  { code: 'GOTOHOUSE', kind: 'once', what: 'Takes you to the door of the nearest house nobody has searched.' },
+  { code: 'GOTOCAR', kind: 'once', what: 'Takes you to your nearest vehicle.' },
+  { code: 'CALLCAR', kind: 'once', what: 'Brings your nearest vehicle to you.' },
+  { code: 'GOTOWAYPOINT', kind: 'once', what: 'Takes you to the waypoint you set.' },
+  { code: 'COORDS x z', kind: 'once', what: 'Takes you to a map position, for example COORDS 150 -40.' },
+  { code: 'WHEREAMI', kind: 'once', what: 'Tells you your map position and where you are.' },
+  { code: 'GIVECAR type', kind: 'once', what: 'Parks a vehicle with a full tank in front of you: bicycle, scooter, sedan, pickup, van, suv or truck (pickup if you leave it out).' },
+  { code: 'REFUELALL', kind: 'once', what: 'Fills the tank of every vehicle you own.' },
+  { code: 'REPAIRCARS', kind: 'once', what: 'Repairs every vehicle you own.' },
+  { code: 'EMPTYPACK', kind: 'once', what: 'Moves everything in your backpack into storage, wherever you are.' },
+  { code: 'RESETHOUSES', kind: 'once', what: 'Makes every searched house full again.' },
   { code: 'WOODSBASE', kind: 'once', what: 'Buys the Deep Woods plot, grows it and builds a finished base.' },
   { code: 'NORMALTIME', kind: 'once', what: 'Turns off NONIGHT, NODAY and FREEZETIME.' },
-  { code: 'NORMALWEATHER', kind: 'once', what: 'Turns off NORAIN and RAINALLDAY.' },
+  { code: 'NORMALWEATHER', kind: 'once', what: 'Turns off NORAIN, RAINALLDAY, STORM and SNOWFALL.' },
+  { code: 'SETSEASON name', kind: 'once', what: 'Moves the calendar to early spring, summer, autumn or winter.' },
+  { code: 'GIVECLOTHES', kind: 'once', what: 'Puts one of every piece of clothing into your storage.' },
   { code: 'RESETCHEATS', kind: 'once', what: 'Turns every switch off.' },
   { code: 'HELP', kind: 'once', what: 'Lists the cheats and which are on.' },
 ];
@@ -137,6 +171,26 @@ export function runCheatCode(raw: string, host: CheatHost): string {
       session.weather = session.weather === 'none' ? 'normal' : 'none';
       host.setWeather(session.weather);
       return flip('NORAIN', session.weather === 'none', 'It never rains.');
+    case 'storm':
+      session.weather = session.weather === 'storm' ? 'normal' : 'storm';
+      host.setWeather(session.weather);
+      return flip('STORM', session.weather === 'storm', 'A thunderstorm rages.');
+    case 'snowfall':
+      session.weather = session.weather === 'snow' ? 'normal' : 'snow';
+      host.setWeather(session.weather);
+      return flip('SNOWFALL', session.weather === 'snow', 'It snows.');
+    case 'setseason': {
+      const idx = SEASONS.indexOf(arg.trim() as Season);
+      if (idx < 0) return 'Use it like this: SETSEASON winter. Seasons: spring, summer, autumn, winter.';
+      const cal = calendarAt(state.rngSeed, state.worldSeconds, state.calendarShift);
+      state.calendarShift += idx * SEASON_DAYS + 2 - cal.yearPhase * YEAR_DAYS;
+      host.changed();
+      return `The calendar now reads early ${arg.trim()}.`;
+    }
+    case 'giveclothes':
+      for (const id of Object.keys(CLOTHING)) give(state, id, 1);
+      host.changed();
+      return 'Done. One of every piece of clothing is in your storage.';
     case 'rainallday':
       session.weather = session.weather === 'always' ? 'normal' : 'always';
       host.setWeather(session.weather);
@@ -267,7 +321,7 @@ export function runCheatCode(raw: string, host: CheatHost): string {
       return 'The weather is back to normal.';
     case 'resetcheats':
     case 'nocheats':
-      Object.assign(c, { hourLock: null, instantBuild: false, noWear: false, freeWork: false, godMode: false, freeShop: false, freeze: false, freeFuel: false, noDamage: false, quickSearch: false });
+      Object.assign(c, { hourLock: null, instantBuild: false, noWear: false, freeWork: false, godMode: false, freeShop: false, freeze: false, freeFuel: false, noDamage: false, quickSearch: false, fastFeet: false, noClip: false, bigPack: false, turbo: false });
       resetCheatSession(host);
       host.changed();
       return 'Every cheat switch is off.';
@@ -279,7 +333,10 @@ export function runCheatCode(raw: string, host: CheatHost): string {
       const once = CHEAT_LIST.filter((x) => x.kind === 'once' && !/^(HELP|NORMAL|RESET)/.test(x.code)).map((x) => x.code);
       return `Switches: ${switches.join(', ')}. One-off: ${once.join(', ')}. Also NORMALTIME, NORMALWEATHER, RESETCHEATS.`;
     }
-    default:
+    default: {
+      const moved = runMoveCheat(word, arg, host);
+      if (moved !== null) return moved;
       return `Unknown code "${raw.trim()}". Type HELP for the list.`;
+    }
   }
 }

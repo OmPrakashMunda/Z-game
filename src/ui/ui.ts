@@ -1,6 +1,7 @@
 import { button, el, money, type ButtonSpec } from './dom';
 import type { DrawerTab } from './drawer';
 import type { DayPart } from '../sim/clock';
+import type { Character, Gender } from '../sim/state';
 import { icon } from './icons';
 
 export interface HudData {
@@ -22,7 +23,8 @@ export interface HudData {
   /** What the backpack holds, such as "12 / 25 kg", or null when it is empty. */
   pack: string | null;
   dayPart: DayPart;
-  raining: boolean;
+  /** The season, temperature and sky as one short phrase, with the icon that goes with it. */
+  weather: { text: string; icon: string };
   muted: boolean;
   /** The speed the player chose: 1 is normal, bigger is fast-forward. */
   speed: number;
@@ -79,6 +81,9 @@ export class UI {
   private readonly timeIcon = el('span', 'icon-host');
   private readonly timeText = el('span');
   private readonly weatherEl = el('span', 'weather icon-label');
+  private readonly weatherIcon = el('span', 'icon-host');
+  private readonly weatherText = el('span');
+  private shownWeatherIcon = '';
   private readonly soundBtn = el('button', 'hud-btn icon-only');
   private shownPart = '';
   private shownMuted: boolean | null = null;
@@ -117,8 +122,7 @@ export class UI {
     this.countdown.title = 'Time left before the outbreak';
     this.countdown.append(this.countdownFill);
     this.timeEl.append(this.timeIcon, this.timeText);
-    this.weatherEl.append(icon('CloudRain', 15), el('span', undefined, 'Raining'));
-    this.weatherEl.style.display = 'none';
+    this.weatherEl.append(this.weatherIcon, this.weatherText);
     const money = el('span', 'money icon-label');
     money.title = 'Your money';
     money.append(icon('Coins', 18), this.moneyEl);
@@ -249,8 +253,11 @@ export class UI {
       this.timeIcon.replaceChildren(icon(names[d.dayPart], 18));
       this.timeEl.title = { dawn: 'Dawn', day: 'Day', dusk: 'Dusk', night: 'Night' }[d.dayPart];
     }
-    const rainShown = d.raining ? '' : 'none';
-    if (this.weatherEl.style.display !== rainShown) this.weatherEl.style.display = rainShown;
+    setText(this.weatherText, d.weather.text);
+    if (this.shownWeatherIcon !== d.weather.icon) {
+      this.shownWeatherIcon = d.weather.icon;
+      this.weatherIcon.replaceChildren(icon(d.weather.icon, 15));
+    }
     if (this.shownMuted !== d.muted) {
       this.shownMuted = d.muted;
       this.soundBtn.replaceChildren(icon(d.muted ? 'VolumeX' : 'Volume2', 18));
@@ -367,6 +374,64 @@ export class UI {
       { label: confirmLabel, kind: 'danger', onClick: onYes },
       { label: 'Cancel', kind: 'secondary', onClick: onNo },
     ]);
+  }
+
+  /** The step between "New Game" and the first day: choose who you are. */
+  showCharacterCreator(opts: { onStart: (c: Character) => void; onBack: () => void }): void {
+    const NAMES: Record<Gender, string[]> = {
+      male: ['Alex', 'Sam', 'Jack', 'Leo', 'Noah', 'Ben', 'Max', 'Ryan', 'Owen', 'Eli'],
+      female: ['Alex', 'Mia', 'Emma', 'Zoe', 'Lily', 'Ava', 'Nora', 'Ella', 'Ruby', 'Iris'],
+    };
+    const pickName = (g: Gender) => NAMES[g][Math.floor(Math.random() * NAMES[g].length)];
+    let gender: Gender = 'male';
+    const input = el('input', 'name-input') as HTMLInputElement;
+    input.type = 'text';
+    input.maxLength = 20;
+    input.placeholder = 'Your name';
+    input.value = pickName(gender);
+    input.setAttribute('aria-label', 'Your name');
+    const row = el('div', 'gender-row');
+    const buttons = new Map<Gender, HTMLButtonElement>();
+    const choose = (g: Gender) => {
+      const wasListed = NAMES[gender].includes(input.value) || input.value.trim() === '';
+      gender = g;
+      for (const [k, b] of buttons) b.classList.toggle('active', k === g);
+      if (wasListed) input.value = pickName(g);
+    };
+    for (const [g, label, iconName] of [['male', 'Man', 'Mars'], ['female', 'Woman', 'Venus']] as const) {
+      const b = el('button', 'gender-btn') as HTMLButtonElement;
+      b.append(icon(iconName, 30), el('span', undefined, label));
+      b.addEventListener('click', () => choose(g));
+      buttons.set(g, b);
+      row.append(b);
+    }
+    buttons.get('male')!.classList.add('active');
+    const dice = el('button', 'tool-btn');
+    dice.append(icon('RotateCw', 14), el('span', undefined, 'Another name'));
+    dice.addEventListener('click', () => {
+      input.value = pickName(gender);
+    });
+    const field = el('div', 'creator');
+    field.append(el('label', 'creator-label', 'Name'), input, dice, el('label', 'creator-label', 'You are'), row);
+    this.showCard(
+      'Create your survivor',
+      'h2',
+      [{ text: 'Choose who you are. Your name and look stay with you for the whole game.' }],
+      [
+        {
+          label: 'Start game',
+          onClick: () => {
+            const name = input.value.trim().slice(0, 20) || pickName(gender);
+            this.closeOverlay();
+            opts.onStart({ name, gender });
+          },
+        },
+        { label: 'Back', kind: 'secondary', onClick: opts.onBack },
+      ],
+      [field],
+    );
+    input.focus();
+    input.select();
   }
 
   showMenu(opts: {

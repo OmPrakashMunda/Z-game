@@ -1,3 +1,4 @@
+import { CLOTHING } from '../data/clothing';
 import { placePoint } from '../sim/places';
 import { createNewGame, SAVE_VERSION, type GameState, type PlaceId } from '../sim/state';
 
@@ -60,6 +61,10 @@ export function migrate(envelope: SaveEnvelope): GameState {
     money: num(s.money, d.money),
     at: typeof s.at === 'string' ? s.at : d.at,
     pos: migratePosition(s, d),
+    character: migrateCharacter(s, d),
+    outfit: migrateOutfit(s, d),
+    wet: Math.min(1, Math.max(0, num(s.wet, 0))),
+    calendarShift: num(s.calendarShift, 0),
     plotId: s.plotId ?? null,
     expansion: {
       n: num(s.expansion?.n, 0),
@@ -103,6 +108,21 @@ function migratePosition(s: Partial<GameState>, d: GameState): GameState['pos'] 
   if (q && Number.isFinite(q.x) && Number.isFinite(q.z)) return { x: q.x, z: q.z, heading: num(q.heading, 0) };
   const where = typeof s.at === 'string' ? placePoint({ ...d, plotId: s.plotId ?? null }, s.at as PlaceId) : null;
   return where ? { x: where.x, z: where.z, heading: 0 } : d.pos;
+}
+function migrateCharacter(s: Partial<GameState>, d: GameState): GameState['character'] {
+  const c = s.character;
+  const name = typeof c?.name === 'string' ? c.name.trim().slice(0, 20) : '';
+  return { name: name || 'Survivor', gender: c?.gender === 'female' ? 'female' : c?.gender === 'male' ? 'male' : d.character.gender };
+}
+function migrateOutfit(s: Partial<GameState>, d: GameState): GameState['outfit'] {
+  const out = { ...d.outfit };
+  const saved = s.outfit as Record<string, unknown> | undefined;
+  if (!saved || typeof saved !== 'object') return out;
+  for (const slot of Object.keys(out) as Array<keyof typeof out>) {
+    const id = saved[slot];
+    out[slot] = typeof id === 'string' && CLOTHING[id]?.slot === slot ? id : null;
+  }
+  return out;
 }
 function isValidEnvelope(e: unknown): e is SaveEnvelope {
   if (!e || typeof e !== 'object') return false;

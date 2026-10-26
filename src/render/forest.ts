@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { TOWN_HALF, type PropDef } from '../data/city';
 import { applyEdgeFade, applyTrunkTint } from './edgefade';
+import { applySeasonFoliage } from './seasonfx';
 
 /**
  * Trees, bushes and rocks drawn as a handful of instanced meshes per chunk. Thousands of trees cost a few draw calls
@@ -18,16 +19,28 @@ function joinParts(parts: Array<[THREE.BufferGeometry, boolean]>): THREE.BufferG
   return mergeGeometries(flat)!;
 }
 
-let material: THREE.Material | null = null;
-let treeMaterial: THREE.Material | null = null;
+interface Mats {
+  pine: THREE.Material;
+  oak: THREE.Material;
+  bush: THREE.Material;
+  rock: THREE.Material;
+}
+let mats: Mats | null = null;
 const shapes = new Map<string, THREE.BufferGeometry>();
 
-function materials(): { plain: THREE.Material; tree: THREE.Material } {
-  material ??= applyEdgeFade(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.92, flatShading: true }));
-  treeMaterial ??= applyTrunkTint(applyEdgeFade(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.92, flatShading: true })));
-  return { plain: material, tree: treeMaterial };
+/** Pines, oaks and bushes take the season's colours; rocks do not. */
+function materials(): Mats {
+  if (!mats) {
+    const base = () => new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.92, flatShading: true });
+    mats = {
+      pine: applySeasonFoliage(applyTrunkTint(applyEdgeFade(base())), 'pine', true),
+      oak: applySeasonFoliage(applyTrunkTint(applyEdgeFade(base())), 'oak', true),
+      bush: applySeasonFoliage(applyEdgeFade(base()), 'bush', false),
+      rock: applyEdgeFade(base()),
+    };
+  }
+  return mats;
 }
-
 function shape(key: string, build: () => THREE.BufferGeometry): THREE.BufferGeometry {
   let g = shapes.get(key);
   if (!g) {
@@ -49,7 +62,7 @@ const hash = (x: number, z: number) => {
 export function buildForestInto(parent: THREE.Object3D, all: PropDef[], skip?: (x: number, z: number) => boolean): THREE.InstancedMesh[] {
   const props = skip ? all.filter((p) => !skip(p.x, p.z)) : all;
   const made: THREE.InstancedMesh[] = [];
-  const { plain, tree } = materials();
+  const mt = materials();
   const dummy = new THREE.Object3D();
   const color = new THREE.Color();
 
@@ -58,8 +71,8 @@ export function buildForestInto(parent: THREE.Object3D, all: PropDef[], skip?: (
     const outside = Math.max(Math.abs(p.x), Math.abs(p.z)) > TOWN_HALF;
     return (0.8 + hash(p.x, p.z) * 0.35) * (outside ? 0.86 : 1);
   };
-  const make = (geo: THREE.BufferGeometry, count: number, kind: 'plain' | 'tree' = 'plain') => {
-    const m = new THREE.InstancedMesh(geo, kind === 'tree' ? tree : plain, count);
+  const make = (geo: THREE.BufferGeometry, count: number, material: THREE.Material) => {
+    const m = new THREE.InstancedMesh(geo, material, count);
     m.castShadow = true;
     m.receiveShadow = true;
     parent.add(m);
@@ -108,7 +121,7 @@ export function buildForestInto(parent: THREE.Object3D, all: PropDef[], skip?: (
 
   if (pines.length) {
     const greens = [0x2f6b3a, 0x3b8247, 0x4a8f3f];
-    const mesh = make(shape('pine', pineGeo), pines.length, 'tree');
+    const mesh = make(shape('pine', pineGeo), pines.length, mt.pine);
     pines.forEach((p, i) => {
       const s = scaleOf(p);
       put(mesh, i, p.x, 0, p.z, p.rot, s, s, s, greens[p.variant % 3], shadeFor(p));
@@ -118,7 +131,7 @@ export function buildForestInto(parent: THREE.Object3D, all: PropDef[], skip?: (
 
   if (oaks.length) {
     const greens = [0x4f8f3a, 0x5fa042, 0x6a9a3a];
-    const mesh = make(shape('oak', oakGeo), oaks.length, 'tree');
+    const mesh = make(shape('oak', oakGeo), oaks.length, mt.oak);
     oaks.forEach((p, i) => {
       const s = scaleOf(p);
       // A few oaks have turned for autumn
@@ -130,7 +143,7 @@ export function buildForestInto(parent: THREE.Object3D, all: PropDef[], skip?: (
 
   // Bushes: three blobs each
   if (bushes.length) {
-    const blobs = make(shape('bush', () => new THREE.IcosahedronGeometry(1, 0)), bushes.length * 3);
+    const blobs = make(shape('bush', () => new THREE.IcosahedronGeometry(1, 0)), bushes.length * 3, mt.bush);
     const offsets: Array<[number, number, number]> = [[0, 0, 0.7], [0.55, 0.5, 0.2], [-0.45, 0.55, 0.25]];
     bushes.forEach((p, b) => {
       offsets.forEach(([ox, r, oz], k) => {
@@ -145,7 +158,7 @@ export function buildForestInto(parent: THREE.Object3D, all: PropDef[], skip?: (
 
   // Rocks
   if (rocks.length) {
-    const stones = make(shape('rock', () => new THREE.DodecahedronGeometry(1, 0)), rocks.length);
+    const stones = make(shape('rock', () => new THREE.DodecahedronGeometry(1, 0)), rocks.length, mt.rock);
     rocks.forEach((p, i) => {
       const s = 0.5 + hash(p.x, p.z) * 0.9;
       put(stones, i, p.x, s * 0.25, p.z, p.rot, s, s * 0.6, s * 0.85, 0x7d8084, 0.8 + hash(p.z, p.x) * 0.3);

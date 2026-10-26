@@ -3,9 +3,22 @@ import type { LocationId, PlotId } from '../data/city';
 import { STORES, type StoreId } from '../data/stores';
 import { worldSecondsAt } from './clock';
 import { startPosition } from './places';
+import { starterOutfit, type Outfit } from '../data/clothing';
 import type { OwnedVehicle } from './vehicles';
 
 export type Phase = 'prep' | 'outbreak' | 'dead';
+
+export type Gender = 'male' | 'female';
+
+/** Who the player is. Chosen when a game starts. */
+export interface Character {
+  name: string;
+  gender: Gender;
+}
+
+export function defaultCharacter(): Character {
+  return { name: 'Alex', gender: 'male' };
+}
 
 /**
  * Where the player is, worked out from where they stand: at a shop's door, at their base (on or just beside their land),
@@ -112,6 +125,13 @@ export interface GameState {
   at: PlaceId;
   /** Where the player stands. */
   pos: Position;
+  character: Character;
+  /** What the character wears, by slot. Not drawn; it changes how the weather hurts. */
+  outfit: Outfit;
+  /** How soaked the character is, 0 to 1. */
+  wet: number;
+  /** Days added to the calendar by the SETSEASON cheat. */
+  calendarShift: number;
   plotId: PlotId | null;
   expansion: Expansion;
   player: PlayerState;
@@ -138,7 +158,7 @@ export interface GameState {
 }
 
 /** Bump when the shape of GameState changes. Older saves are filled in by save/store.ts. */
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 
 export function initialSurvival(): SurvivalState {
   return {
@@ -160,7 +180,7 @@ export function initialStoreStock(): Record<string, Record<string, number>> {
   return out;
 }
 
-export function createNewGame(seed = Date.now() % 2_147_483_647): GameState {
+export function createNewGame(seed = Date.now() % 2_147_483_647, character: Character = defaultCharacter()): GameState {
   const start = worldSecondsAt(balance.startDay, balance.startHour);
   return {
     version: SAVE_VERSION,
@@ -170,6 +190,10 @@ export function createNewGame(seed = Date.now() % 2_147_483_647): GameState {
     money: balance.startingMoney,
     at: 'motel',
     pos: startPosition(),
+    character: { name: character.name, gender: character.gender },
+    outfit: starterOutfit(),
+    wet: 0,
+    calendarShift: 0,
     plotId: null,
     expansion: { n: 0, e: 0, s: 0, w: 0 },
     player: { health: 100, hunger: 100, thirst: 100, fatigue: 100 },

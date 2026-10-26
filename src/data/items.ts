@@ -2,7 +2,7 @@ import { CELL, STRUCTURE_LIST } from './structures';
 
 export type Category =
   | 'food' | 'water' | 'household' | 'medical' | 'materials'
-  | 'tools' | 'power' | 'farming' | 'fuel' | 'weapons' | 'vehicles'
+  | 'tools' | 'power' | 'farming' | 'fuel' | 'weapons' | 'vehicles' | 'clothing'
   | 'fences' | 'houses' | 'landscape' | 'waterworks' | 'defense' | 'storage' | 'utility';
 
 export interface CategoryInfo {
@@ -35,6 +35,7 @@ export const CATEGORIES: Record<Category, CategoryInfo> = {
   fuel: { label: 'Fuel', icon: 'Fuel', color: '#d0682a', panic: 1.0 },
   weapons: { label: 'Weapons', icon: 'Crosshair', color: '#7c8594', panic: 1.0 },
   vehicles: { label: 'Vehicles', icon: 'Truck', color: '#3a9c9c', panic: 0.25 },
+  clothing: { label: 'Clothing', icon: 'Shirt', color: '#9a6fb8', panic: 0.35 },
 };
 
 /** Categories whose products are placed on the base plot. */
@@ -152,6 +153,25 @@ const RAW: Array<[string, string, Category, number, string, string]> = [
   ['bull_bar', 'Bull bar', 'vehicles', 750, 'each', 'Shield'],
   ['extra_tank', 'Extra fuel tank', 'vehicles', 540, 'each', 'Fuel'],
   ['spare_parts', 'Spare parts', 'vehicles', 60, 'box', 'Cog'],
+  // Clothing
+  ['baseball_cap', 'Baseball cap', 'clothing', 18, 'each', 'HardHat'],
+  ['wool_beanie', 'Wool beanie', 'clothing', 24, 'each', 'HardHat'],
+  ['rain_hat', 'Waterproof hat', 'clothing', 28, 'each', 'HardHat'],
+  ['tshirt', 'T-shirt', 'clothing', 12, 'each', 'Shirt'],
+  ['hoodie', 'Hoodie', 'clothing', 45, 'each', 'Shirt'],
+  ['jacket', 'Padded jacket', 'clothing', 120, 'each', 'Shirt'],
+  ['raincoat', 'Raincoat', 'clothing', 85, 'each', 'Umbrella'],
+  ['parka', 'Insulated parka', 'clothing', 240, 'each', 'Snowflake'],
+  ['jeans', 'Jeans', 'clothing', 40, 'pair', 'Shirt'],
+  ['cargo_pants', 'Cargo pants', 'clothing', 55, 'pair', 'Shirt'],
+  ['rain_pants', 'Waterproof trousers', 'clothing', 70, 'pair', 'Umbrella'],
+  ['thermal_pants', 'Thermal trousers', 'clothing', 65, 'pair', 'Snowflake'],
+  ['work_gloves', 'Work gloves', 'clothing', 22, 'pair', 'Hand'],
+  ['winter_gloves', 'Insulated gloves', 'clothing', 50, 'pair', 'Hand'],
+  ['sneakers', 'Sneakers', 'clothing', 55, 'pair', 'Footprints'],
+  ['hiking_boots', 'Hiking boots', 'clothing', 120, 'pair', 'Footprints'],
+  ['rubber_boots', 'Rubber boots', 'clothing', 60, 'pair', 'Footprints'],
+  ['winter_boots', 'Insulated boots', 'clothing', 140, 'pair', 'Footprints'],
 ];
 
 function buildTime(minutes: number): string {

@@ -112,6 +112,8 @@ Content (items, prices, building costs, durations in game seconds) lives in `dat
 - **Power:** generator consumes fuel per world second while any powered piece is active. When fuel reaches zero powered pieces turn off.
 - **Zombies:** each zombie has a state: wander, investigate (noise or light), chase, attack barrier. Movement uses `realDt`. Pathing uses a **flow field** computed by BFS over the base grid from the target (player or base core), with barrier cells costing more in proportion to their remaining HP. One field is shared by all zombies, so cost does not grow with zombie count. Spawn rate rises with day number and at night, capped at the config limit.
 - **Waves:** a schedule produced by the Director (rule-based in this version), executed by the simulation.
+- **Seasons and weather:** `weatherAt(seed, worldSeconds, shift)` is a pure function: seasons of 20 days (80-day year), smooth value-noise spells for rain and storms, snow below 1.5 degrees, heatwaves and cold snaps lasting days. Nothing is saved except a calendar shift from a cheat. `currentWeather(state)` applies an override that the weather cheats and tests set, so rules and picture agree.
+- **Exposure:** `stepExposure` runs after survival. Outside and unsheltered, rain soaks and costs health, a felt temperature below 4 degrees costs health (felt = air + warmth x 18 - wet x 6 - wind), heat above 30 raises thirst. Clothes in five slots give warmth and dryness. Lightning near the player does heavy damage.
 - **Looting:** each location has loot containers with item tables. A search takes world time and produces noise. Depleted containers refill slowly over many days.
 
 ## Rendering
@@ -168,4 +170,6 @@ Each milestone has a "done when" check (see tasks) that can be verified by runni
 | Fixed 20 Hz sim step | Predictable behavior, stable at any frame rate | Variable step: simpler, less stable |
 | Flow field for zombies | Cost is constant per zombie | Per-zombie A*: heavy at 150 zombies |
 | Scaled time only for the world | Movement stays playable at 24x | Scaling everything: unplayable |
+| Weather from seed and clock | Same weather every time, nothing to save, easy to sync later | Simulated weather state: needs saving and drifts from the picture |
+| Rain painted in screen space | Covers the whole screen at any angle | A 3D rain box around the camera: rain only in one patch |
 | Local saves first | Fastest path to playable | Cloud first: adds auth and backend before gameplay exists |
