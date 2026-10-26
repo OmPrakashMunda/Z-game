@@ -120,6 +120,34 @@ check('owned land is clear of trees for walking too', after === 0, `(${after} le
 const at = await P();
 check('standing on the land counts as the base', at.at === 'base');
 
+// ---- Things you build block you, except gates
+const placed = await G(() => {
+  const g = window.__game;
+  const errs = [];
+  for (let cx = 2; cx <= 7; cx++) errs.push(g.placeDone('fence_wood', cx, 4, 0));
+  errs.push(g.placeDone('gate_wood', 8, 4, 0));
+  errs.push(g.placeDone('house_family', 1, 7, 0));
+  errs.push(g.placeDone('path_gravel', 10, 8, 0));
+  return errs.filter(Boolean);
+});
+check('the test base was built', placed.length === 0, JSON.stringify(placed));
+await G(() => window.__game.teleport(155, -46));
+let r = await G(() => window.__game.walk(0, 1, 5));
+check('a fence stops the player', r.z < -42, `(z ${r.z.toFixed(1)}, fence at -42)`);
+await G(() => window.__game.teleport(165, -46));
+r = await G(() => window.__game.walk(0, 1, 6));
+check('a gate lets the player through', r.z > -38, `(z ${r.z.toFixed(1)})`);
+await G(() => window.__game.teleport(153, -24));
+r = await G(() => window.__game.walk(0, -1, 5));
+check('a house you built stops the player', r.z > -30.1 && r.z < -26, `(z ${r.z.toFixed(1)}, wall at -30)`);
+await G(() => window.__game.teleport(168, -30));
+r = await G(() => window.__game.walk(0, -1, 3));
+check('a path can be walked over', r.z < -36, `(z ${r.z.toFixed(1)})`);
+const carBlocked = await G(async () => {
+  const col = await import('/src/world/collide.ts');
+  return { fence: col.blockedAt(155, -42, 0.8), gate: col.blockedAt(165, -42, 0.8) };
+});
+check('vehicles are stopped by the fence too, and pass the gate', carBlocked.fence && !carBlocked.gate, JSON.stringify(carBlocked));
 // ---- The corner map and waypoints
 check('the corner map is on screen', await page.locator('.minimap canvas').isVisible());
 await page.locator('.minimap canvas').click({ position: { x: 120, y: 60 } });

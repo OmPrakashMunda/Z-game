@@ -8,10 +8,19 @@ const EDGE = 30;
 /** Half-width of the box a tree trunk blocks. */
 const TRUNK: Record<string, number> = { tree: 0.45, oak: 0.5, rock: 0.7 };
 
+/** The structures on the player's land. Set once a frame by the game, because pieces are placed, moved and taken down. */
+let baseSolids: Rect[] = [];
+export function setBaseSolids(rects: Rect[]): void {
+  baseSolids = rects;
+}
+
 /** Everything solid near a point: the town's buildings and props, houses, and trees that have not been cleared. */
 export function solidsNear(x: number, z: number, reach: number): Rect[] {
   const out: Rect[] = [];
   for (const c of city.colliders) {
+    if (Math.abs(c.x - x) < c.w / 2 + reach && Math.abs(c.z - z) < c.d / 2 + reach) out.push(c);
+  }
+  for (const c of baseSolids) {
     if (Math.abs(c.x - x) < c.w / 2 + reach && Math.abs(c.z - z) < c.d / 2 + reach) out.push(c);
   }
   const c0x = chunkCoord(x - reach);

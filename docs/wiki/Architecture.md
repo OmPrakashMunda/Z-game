@@ -35,10 +35,11 @@ src/
     places.ts          Where the player is: at a door, at the base, or outside
     vehicles.ts        Owned vehicles: driving, fuel, crashes, repairs, parts, parking, delivery
     cargo.ts           The backpack and a vehicle's load: picking up, loading, unloading
+    colliders.ts       Which of your structures block walking and driving (gates and flat things do not)
     loot.ts            What is inside each house, doors, and the search itself
   world/             The generated world outside the town (no graphics code)
     gen.ts             Roads, houses, fields and trees for each 80 m chunk, from a fixed seed
-    collide.ts         What is solid near a point; moving a walker with sliding
+    collide.ts         What is solid near a point (including your structures); moving a walker with sliding
     clearing.ts        Trees cleared around land you own (read by drawing and by collision)
   render/            Three.js
     scene.ts           Renderer, camera (follows the player), picking, highlights, cables and pipes

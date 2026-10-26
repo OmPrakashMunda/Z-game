@@ -169,6 +169,7 @@ r = await G(() => window.__game.drive(1, 0, 15));
 check('the tank runs dry', r.ranDry && r.v.fuel === 0, `(${r.v.fuel})`);
 const coast = await G(() => window.__game.drive(1, 0, 10));
 check('with no fuel the vehicle only slows down', coast.v.speed < r.v.speed - 3, `(${r.v.speed.toFixed(1)} -> ${coast.v.speed.toFixed(1)} m/s)`);
+await page.waitForTimeout(1200);
 check('the display warns about the empty tank', /Out of fuel/i.test(await page.locator('.dash').innerText()));
 await leave();
 

@@ -36,6 +36,10 @@ You walk at 4.6 m/s and run at 8 m/s, in real time. The game clock still runs at
 make the world go by faster while you walk at the same pace. Walls, houses, props and trees stop you and you slide along
 them. Trees on land you own are cleared, and do not block you either.
 
+Everything you build blocks you and your vehicles too: walls, fences, sandbag walls, containers, houses, tanks, wells, ponds and the rest.
+**Gates are the way in and out.** You also walk over paths, flower beds, trenches, spike strips and orchard plots, which lie flat or
+are dug into the ground.
+
 The camera follows you. Drag the map to look around: it lets go of you until you move again. The camera never wanders more
 than 140 m from you, so it never looks at ground that is not drawn.
 

@@ -24,7 +24,7 @@ Besides the browser tests, always run `npm run build`, which typechecks and buil
 | Script | Checks | Covers |
 | --- | --- | --- |
 | `e2e` | 18 | Title screen, new game, the clock, walking to shops, waypoints, buying a plot, saving and resuming |
-| `world` | 28 | World size, houses and ids, chunk streaming, walking, collision, the edge, cleared land, the corner map, saving the position, old saves |
+| `world` | 34 | World size, houses and ids, chunk streaming, walking, collision, the edge, cleared land, building collision (fence, gate, house, path), the corner map, saving the position, old saves |
 | `vehicles` | 45 | The seven vehicles, buying, getting in and out, speed and surfaces, fuel, crashes, parts, repairs, a trailer, cheats, saving |
 | `loot` | 29 | Searching houses, loot that is the same every time, the backpack, leftovers, vehicles taking the load, the cargo panel, saving |
 | `build` | 23 | Online store, orders, the storage list, placing, dragging lines, refusals, crew build times, clicking a structure, take down, save and reload |

@@ -37,7 +37,8 @@ import { flushSurvival, summarize } from './sim/survival';
 import { runtimeOf, topologyOf } from './sim/utilities';
 import type { IssueKind } from './data/survival';
 import { distanceTo, locate, placePoint } from './sim/places';
-import { moveWalker } from './world/collide';
+import { moveWalker, setBaseSolids } from './world/collide';
+import { baseColliders } from './sim/colliders';
 import { AREA_NAMES, areaAt, houseById } from './world/gen';
 import { Minimap } from './ui/minimap';
 import { Dashboard } from './ui/dashboard';
@@ -670,6 +671,7 @@ function checkWaypoint(): void {
 /** Walk or drive, whichever the player is doing. */
 function updateMovement(dt: number): void {
   if (!state || dt <= 0) return;
+  setBaseSolids(baseColliders(state));
   if (state.driving !== null) {
     updateDrive(dt);
   } else {
@@ -1868,6 +1870,7 @@ if (import.meta.env.DEV) {
     /** Hold the driving controls for some seconds without keys, with the real rules (for testing). */
     drive(throttle: number, steer: number, seconds: number, brake = false) {
       if (!state) return null;
+      setBaseSolids(baseColliders(state));
       const v = drivenVehicle(state);
       if (!v) return null;
       const log = { damage: 0, ranDry: false, brokeDown: false, topSpeed: 0 };
@@ -1917,6 +1920,7 @@ if (import.meta.env.DEV) {
     /** Walk in a ground direction for some seconds without keys, with the real collision rules (for testing). */
     walk(dx: number, dz: number, seconds: number, run = false) {
       if (!state) return null;
+      setBaseSolids(baseColliders(state));
       const len = Math.hypot(dx, dz) || 1;
       const v = run ? RUN_SPEED : WALK_SPEED;
       for (let t = 0; t < seconds; t += 0.05) {
