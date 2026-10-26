@@ -54,6 +54,7 @@ export function activeCheats(state: GameState | null): string[] {
     if (c.freeze) out.push('FREEZETIME');
     if (c.freeFuel) out.push('ENDLESSFUEL');
     if (c.noDamage) out.push('TOUGHCARS');
+    if (c.quickSearch) out.push('QUICKSEARCH');
   }
   if (session.weather === 'none') out.push('NORAIN');
   if (session.weather === 'always') out.push('RAINALLDAY');
@@ -82,6 +83,7 @@ export const CHEAT_LIST: CheatInfo[] = [
   { code: 'FREEZETIME', kind: 'switch', what: 'The world clock stops (you can still walk and drive).' },
   { code: 'ENDLESSFUEL', kind: 'switch', what: 'Vehicles use no fuel.' },
   { code: 'TOUGHCARS', kind: 'switch', what: 'Crashes do no damage to your vehicles.' },
+  { code: 'QUICKSEARCH', kind: 'switch', what: 'Searching a house takes no time.' },
   { code: 'BUILDNOW', kind: 'once', what: 'Finishes everything that is being built.' },
   { code: 'MONEY', kind: 'once', what: 'Adds $500,000.' },
   { code: 'SETMONEY n', kind: 'once', what: 'Sets your money to n dollars.' },
@@ -172,6 +174,9 @@ export function runCheatCode(raw: string, host: CheatHost): string {
     case 'toughcars':
       c.noDamage = !c.noDamage;
       return flip('TOUGHCARS', c.noDamage, 'Crashes do no damage.');
+    case 'quicksearch':
+      c.quickSearch = !c.quickSearch;
+      return flip('QUICKSEARCH', c.quickSearch, 'Searching takes no time.');
 
     // ---- One-off
     case 'buildnow':
@@ -262,7 +267,7 @@ export function runCheatCode(raw: string, host: CheatHost): string {
       return 'The weather is back to normal.';
     case 'resetcheats':
     case 'nocheats':
-      Object.assign(c, { hourLock: null, instantBuild: false, noWear: false, freeWork: false, godMode: false, freeShop: false, freeze: false, freeFuel: false, noDamage: false });
+      Object.assign(c, { hourLock: null, instantBuild: false, noWear: false, freeWork: false, godMode: false, freeShop: false, freeze: false, freeFuel: false, noDamage: false, quickSearch: false });
       resetCheatSession(host);
       host.changed();
       return 'Every cheat switch is off.';

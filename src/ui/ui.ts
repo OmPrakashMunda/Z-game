@@ -19,6 +19,8 @@ export interface HudData {
   location: string;
   /** The waypoint and how far away it is, or null when none is set. */
   waypoint: string | null;
+  /** What the backpack holds, such as "12 / 25 kg", or null when it is empty. */
+  pack: string | null;
   dayPart: DayPart;
   raining: boolean;
   muted: boolean;
@@ -88,6 +90,8 @@ export class UI {
   private readonly locText = el('span');
   private readonly wpEl = el('span', 'waypoint icon-label');
   private readonly wpText = el('span');
+  private readonly packEl = el('span', 'pack icon-label');
+  private readonly packText = el('span');
   private readonly speedEl = el('span', 'speed');
   private readonly viewGroup = el('div', 'view-group');
   private readonly compassIcon = el('span', 'compass-icon');
@@ -121,6 +125,9 @@ export class UI {
     this.locEl.append(icon('MapPin', 14), this.locText);
     this.wpEl.append(icon('Flag', 14), this.wpText);
     this.wpEl.style.display = 'none';
+    this.packEl.title = 'What you carry. It goes into your storage when you reach your base.';
+    this.packEl.append(icon('Backpack', 14), this.packText);
+    this.packEl.style.display = 'none';
     this.soundBtn.title = 'Sound (M)';
     this.soundBtn.addEventListener('click', () => handlers.onToggleSound());
     const menuBtn = el('button', 'hud-btn icon-only');
@@ -166,7 +173,7 @@ export class UI {
     }
 
     this.hud.append(
-      day, this.countdown, this.leftEl, this.tagEl, this.cheatTag, this.timeEl, this.weatherEl, money, this.locEl, this.wpEl,
+      day, this.countdown, this.leftEl, this.tagEl, this.cheatTag, this.timeEl, this.weatherEl, money, this.locEl, this.wpEl, this.packEl,
       el('span', 'spacer'), this.viewGroup, this.speedGroup, this.speedEl, this.soundBtn, menuBtn,
     );
 
@@ -255,6 +262,9 @@ export class UI {
     setText(this.leftEl, d.outbreak ? '' : `${d.daysLeft} day${d.daysLeft === 1 ? '' : 's'} left`);
     setText(this.locText, d.location);
     if (d.waypoint) setText(this.wpText, d.waypoint);
+    if (d.pack) setText(this.packText, d.pack);
+    const packShown = d.pack ? '' : 'none';
+    if (this.packEl.style.display !== packShown) this.packEl.style.display = packShown;
     const wpShown = d.waypoint ? '' : 'none';
     if (this.wpEl.style.display !== wpShown) this.wpEl.style.display = wpShown;
     setText(this.speedEl, `${d.timeScale * d.speed}x`);
@@ -412,6 +422,24 @@ export class UI {
       ],
       [{ label: 'Back to the title screen', onClick: opts.onTitle }],
     );
+  }
+
+  /** The bar shown while searching a house. Pass null to hide it. */
+  setSearch(text: string | null, fraction = 0): void {
+    let box = this.root.querySelector<HTMLElement>('.house-search');
+    if (!text) {
+      box?.remove();
+      return;
+    }
+    if (!box) {
+      box = el('div', 'house-search');
+      const bar = el('span', 'search-bar');
+      bar.append(el('span', 'search-fill'));
+      box.append(el('span', 'search-text'), bar, el('span', 'search-hint', 'Move to stop'));
+      this.root.append(box);
+    }
+    setText(box.querySelector<HTMLElement>('.search-text')!, text);
+    box.querySelector<HTMLElement>('.search-fill')!.style.width = `${Math.round(fraction * 100)}%`;
   }
 
   /** The hint above the dock, for example "Space: Enter Fresh Mart". Pass null to hide it. */

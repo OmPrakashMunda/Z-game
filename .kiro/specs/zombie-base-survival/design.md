@@ -9,7 +9,7 @@ A TypeScript browser game built with Vite and Three.js. Game logic (the simulati
 The preparation phase is played from a city-management view, not through a walking character.
 
 - The renderer exposes picking (`pick`), hover and selection highlights, camera pan/zoom, and map pins. It reports hover and click events through a small handler interface.
-- `main.ts` turns a click into a place panel. Its travel action calls `goTo`, which starts a time-lapse: the sim runs with a boosted `worldDt` until the travel time (from `sim/travel.ts`, based on map distance) has elapsed, then `state.at` is updated and the place opens (shop, realty, or details).
+- `main.ts` turns a click into a place panel with a waypoint button. The player walks or drives: `updateMovement` runs once per frame in real time and changes `state.pos` (and the driven vehicle). `state.at` is worked out from `state.pos` by `sim/places.ts`, and the use key opens the shop at the door. The world outside the town is generated in chunks by `world/gen.ts` and drawn near the player by `render/streamer.ts`.
 - Commands that change the game (`placeOrder`, `buyPlot`) live in `sim/` and check their own rules, including `state.at`, so the UI can never skip a rule.
 - The UI is plain DOM: HUD, place panel, left drawer (storage, orders, news), and two modal views (shop, realty). Modals do not stop the clock. Views redraw only when their content changes, so a click is never lost to a rebuild.
 

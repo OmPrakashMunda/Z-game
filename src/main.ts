@@ -38,9 +38,13 @@ import { runtimeOf, topologyOf } from './sim/utilities';
 import type { IssueKind } from './data/survival';
 import { distanceTo, locate, placePoint } from './sim/places';
 import { moveWalker } from './world/collide';
-import { AREA_NAMES, areaAt } from './world/gen';
+import { AREA_NAMES, areaAt, houseById } from './world/gen';
 import { Minimap } from './ui/minimap';
 import { Dashboard } from './ui/dashboard';
+import { CargoPanel } from './ui/cargo-panel';
+import { describeGoods, loadFromStorage, loadWeight, packWeight, unloadPack, unloadToStorage } from './sim/cargo';
+import { activeSearch, cancelSearch, DOOR_REACH, doorOf, houseAtDoor, houseState, startSearch, takeLeftovers, takeSearchResults } from './sim/loot';
+import { PACK_KG } from './data/weights';
 import { ATTACHMENT_LIST, effective, VEHICLES, type VehicleId } from './data/vehicles';
 import {
   addVehicle, atPump, condition, drivenVehicle, driveStep, enterVehicle, exitVehicle, fitPart, fitProblem, FUEL_ITEM, onHand, parkingSpot, pumpPrice,
@@ -135,6 +139,11 @@ const cheats = new CheatConsole(uiEl, (code) => runCheat(code));
 const placePanel = new PlacePanel(uiEl, () => select(null));
 const minimap = new Minimap(uiEl, (p) => setWaypoint(p.x, p.z, 'Map marker'));
 const dashboard = new Dashboard(uiEl);
+const cargoPanel = new CargoPanel(uiEl, () => state!, {
+  onLoad: (id, item, n) => cargoMove('load', id, item, n),
+  onUnload: (id, item, n) => cargoMove('unload', id, item, n),
+  onUnloadAll: (id) => cargoMove('all', id, '', 0),
+});
 const piecePanel = new PiecePanel(uiEl, () => state!, {
   onClose: () => select(null),
   onRotate: (id) => rotatePlaced(id),
@@ -330,6 +339,7 @@ function closeAllViews(): void {
   piecePanel.hide();
   expandPanel.hide();
   architect.hide();
+  cargoPanel.hide();
   cheats.hide();
   shop.close();
   realty.close();
@@ -377,6 +387,7 @@ input.onPress('Escape', () => {
   if (screen === 'menu') return closeMenu();
   if (screen !== 'play') return;
   if (modalOpen()) return shop.closeSheet() || leaveBuilding();
+  if (cargoPanel.isOpen) return cargoPanel.hide();
   if (architect.isOpen) return architect.hide();
   if (build) return stopPlacing();
   if (drawer.isOpen) return drawer.hide();
@@ -579,6 +590,11 @@ function waypointText(): string | null {
 function updatePlace(): void {
   if (!state) return;
   const at = locate(state.pos, landOf(state) ?? null);
+  if (at === 'base' && state.driving === null && Object.keys(state.pack).length > 0) {
+    const kg = unloadPack(state);
+    ui.toast(`You unloaded ${Math.round(kg)} kg of supplies into your storage.`, 'info');
+    schedulePersist();
+  }
   if (at === state.at) return;
   state.at = at;
   // Walking away from a shop closes it
@@ -661,6 +677,7 @@ function updateMovement(dt: number): void {
     updateWalk(dt);
   }
   gfx.syncVehicles(state.vehicles);
+  watchSearch();
   checkWaypoint();
 }
 
@@ -682,6 +699,7 @@ function startDriving(id: number): boolean {
     return false;
   }
   if (build) stopPlacing(false);
+  cancelSearch(state);
   select(null);
   shop.close();
   realty.close();
@@ -744,7 +762,7 @@ function updateDrive(dt: number): void {
     fuel: def.fuel === 'none' ? null : { have: v.fuel, size: eff.tank, kind: def.fuel },
     condition: condition(v),
     warning,
-    load: { have: 0, max: eff.cargo },
+    load: { have: loadWeight(v), max: eff.cargo },
     trailer: eff.trailer,
   });
 }
@@ -763,7 +781,7 @@ function vehicleInfo(id: number, s: GameState): PlaceInfo {
     ['Condition', `${Math.round(condition(v) * 100)}%`],
     ['Top speed', `${Math.round(def.topSpeed * 3.6)} km/h`],
     ['Range now', def.fuel === 'none' ? 'Unlimited' : `${Math.round(v.fuel / def.burn)} km`],
-    ['Cargo space', `${eff.cargo} kg`],
+    ['Load', `${Math.round(loadWeight(v))} / ${eff.cargo} kg`],
     ['Seats', String(def.seats)],
   ];
   const fitted = v.parts.map((pt) => ATTACHMENT_LIST.find((a) => a.id === pt)?.name).filter(Boolean);
@@ -785,6 +803,7 @@ function vehicleInfo(id: number, s: GameState): PlaceInfo {
     const parts = onHand(s, v, 'spare_parts');
     actions.push({ label: `Repair (${parts} spare parts on hand)`, kind: 'secondary', disabled: parts < 1 && !runtimeOf(s).cheats.freeWork, onClick: () => vehicleJob('repair', v.id) });
   }
+  if (near) actions.push({ label: 'Cargo: load and unload', kind: 'secondary', onClick: () => cargoPanel.show(v.id) });
   if (near && !driving) {
     for (const a of ATTACHMENT_LIST) {
       if (!a.fits.includes(v.type)) continue;
@@ -842,6 +861,66 @@ function vehicleJob(job: string, id: number): void {
   schedulePersist();
 }
 
+/** At a house door after the outbreak: start searching it, or pick up what did not fit last time. */
+function interactHouse(): boolean {
+  if (!state || state.phase !== 'outbreak' || state.driving !== null) return false;
+  const h = houseAtDoor(state.pos.x, state.pos.z);
+  if (!h) return false;
+  if (activeSearch(state)) return true;
+  const st = houseState(state, h.id);
+  if (st === 'fresh') {
+    const r = startSearch(state, h.id);
+    if (!r.ok) ui.toast(r.reason);
+    return true;
+  }
+  if (st === 'leftovers') {
+    const r = takeLeftovers(state, h.id);
+    if (r && Object.keys(r.took).length > 0) {
+      ui.toast(`Took ${describeGoods(r.took)}.${Object.keys(r.left).length ? ' Some of it still does not fit.' : ''}`, 'info');
+      audio.buy();
+      schedulePersist();
+    } else {
+      ui.toast('You cannot carry any more. Empty your pack at your base, or bring a vehicle.');
+    }
+    return true;
+  }
+  ui.toast('You have already searched here.');
+  return true;
+}
+
+/** A search stops if the player walks off or gets into a vehicle. */
+function watchSearch(): void {
+  if (!state) return;
+  const sr = activeSearch(state);
+  if (!sr) return;
+  const h = houseById(sr.houseId);
+  const door = h ? doorOf(h) : null;
+  const gone = !door || Math.hypot(door.x - state.pos.x, door.z - state.pos.z) > DOOR_REACH + 1.5;
+  if (gone || walkSpeed > 0.3 || state.driving !== null) {
+    cancelSearch(state);
+    ui.toast('Search stopped.');
+  }
+}
+
+function cargoMove(kind: 'load' | 'unload' | 'all', id: number, item: string, n: number): void {
+  if (!state) return;
+  const v = state.vehicles.find((x) => x.id === id);
+  if (!v) return;
+  let moved = 0;
+  if (kind === 'load') moved = loadFromStorage(state, v, item, n);
+  else if (kind === 'unload') moved = unloadToStorage(state, v, item, n);
+  else for (const [it, q] of Object.entries({ ...v.cargo })) moved += unloadToStorage(state, v, it, q);
+  if (moved === 0) {
+    ui.toast(state.at === 'base' ? 'Nothing could be moved.' : 'Park at your base to load and unload.');
+    audio.error();
+    return;
+  }
+  audio.place();
+  cargoPanel.refresh(true);
+  if (selected) refreshPlacePanel();
+  schedulePersist();
+}
+
 /** What pressing the use key would do here, for the hint above the dock. */
 function promptFor(s: GameState): string | null {
   if (screen !== 'play' || modalOpen() || build) return null;
@@ -849,6 +928,14 @@ function promptFor(s: GameState): string | null {
   if (s.driving !== null) return null;
   const parked = vehicleNear(s, s.pos.x, s.pos.z);
   if (parked) return `Drive ${VEHICLES[parked.type].name}`;
+  if (s.phase === 'outbreak') {
+    const h = houseAtDoor(s.pos.x, s.pos.z);
+    if (h) {
+      if (activeSearch(s)) return null;
+      const st = houseState(s, h.id);
+      return st === 'fresh' ? `Search the ${h.name.toLowerCase()}` : st === 'leftovers' ? `Take the rest from the ${h.name.toLowerCase()}` : `Searched: ${h.name.toLowerCase()}`;
+    }
+  }
   if (s.at === 'outside') return null;
   if (s.at === 'base') return s.plotId ? 'Your base' : null;
   const loc = locationById(s.at);
@@ -862,6 +949,7 @@ function interact(): void {
   if (!state || screen !== 'play' || modalOpen() || build) return;
   if (state.driving !== null) return stopDriving();
   if (enterNearest()) return;
+  if (interactHouse()) return;
   if (state.at === 'outside') return;
   openPlace(state.at);
 }
@@ -1498,7 +1586,7 @@ function runDirector(s: GameState): void {
 
 function objective(s: GameState): string | null {
   // Before the outbreak the advisor panel tells the player what to do; this banner is only for the outbreak.
-  if (s.phase === 'outbreak') return 'The outbreak has begun. Keep the family fed and watered. Zombies and base defense arrive in later updates.';
+  if (s.phase === 'outbreak') return 'The outbreak has begun. Keep the family fed and watered, and search the empty houses for supplies. Zombies and base defense arrive in a later update.';
   return null;
 }
 
@@ -1624,6 +1712,14 @@ function frame(now: number): void {
       accumulator -= balance.simStep;
       if (!runtimeOf(state).cheats.freeze) stepSim(state, balance.simStep, balance.simStep * config.timeScale * effectiveSpeed());
     }
+    for (const r of takeSearchResults(state)) {
+      if (r.empty) ui.toast(`The ${r.name.toLowerCase()} had already been picked clean.`);
+      else {
+        const rest = Object.keys(r.left).length > 0 ? ` No room for ${describeGoods(r.left)}: it stays in the house.` : '';
+        ui.toast(`Found ${describeGoods(r.took)}.${rest}`, 'info');
+        audio.done();
+      }
+    }
     runDirector(state);
     slowDownIfNeeded(state);
     updateMovement(renderDt);
@@ -1646,6 +1742,7 @@ function frame(now: number): void {
       shop.refresh();
       realty.refresh();
       drawer.refresh(state);
+      cargoPanel.refresh();
       if (placePanel.isOpen) refreshPlacePanel();
       if (piecePanel.isOpen) refreshPiecePanel();
       ui.setCheats(activeCheats(state));
@@ -1669,7 +1766,12 @@ function frame(now: number): void {
     const unread = state.messages.filter((m) => m.id > seenMsgId && m.kind !== 'order').length;
     gfx.render(screen === 'play' ? renderDt : 0, visualSeconds(state));
     ui.setPrompt(promptFor(state));
-    minimap.update({ x: state.pos.x, z: state.pos.z, heading: state.pos.heading, land: landOf(state) ?? null, waypoint });
+    const searching = activeSearch(state);
+    ui.setSearch(searching ? `Searching the ${searching.name.toLowerCase()}` : null, searching ? 1 - searching.remaining / searching.total : 0);
+    minimap.update({
+      x: state.pos.x, z: state.pos.z, heading: state.pos.heading, land: landOf(state) ?? null, waypoint,
+      looted: state.phase === 'outbreak' ? state.looted : null,
+    });
     const day = dayOf(state.worldSeconds);
     ui.updateHud({
       day,
@@ -1685,6 +1787,7 @@ function frame(now: number): void {
       objective: objective(state),
       location: placeName(state),
       waypoint: waypointText(),
+      pack: packWeight(state) > 0 ? `${Math.round(packWeight(state))} / ${PACK_KG} kg` : null,
       dayPart: dayPart(hourOf(state.worldSeconds)),
       raining: gfx.atmosphere.rain > 0.15,
       muted: audio.isMuted,
@@ -1791,6 +1894,10 @@ if (import.meta.env.DEV) {
     },
     parkingSpot(where: 'dealer' | 'base') {
       return state ? parkingSpot(state, where, 2) : null;
+    },
+    /** What the player carries and which houses are searched (for testing). */
+    loot() {
+      return state ? JSON.parse(JSON.stringify({ pack: state.pack, looted: state.looted, searching: activeSearch(state) })) : null;
     },
     /** Put the player at a spot, or at a place by name, and draw the world around it (for testing). */
     teleport(x: number, z: number) {

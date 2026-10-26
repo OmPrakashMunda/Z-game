@@ -28,7 +28,7 @@ Each top-level task is a milestone that ends with something playable.
   - [x] 2.6 Checkpoint: close the tab and reopen it; the game resumes at the same game time
     - _Requirements: 2.2, 3.3_
 
-- [x] 3. M2: City map and click-to-travel
+- [x] 3. M2: City map (click-to-travel was later replaced by walking, see task 10)
   - [x] 3.1 Define the city layout in `data/city.ts` and build the map from it (roads, shops, motel, houses, three plots)
     - _Requirements: 4.1_
   - [x] 3.2 Add the pan/zoom camera (drag, WASD, wheel) and remove the walking character
@@ -158,17 +158,31 @@ Each top-level task is a milestone that ends with something playable.
 - [ ] 8. M7: Supply runs (design to be decided after the outbreak exists: map-based expeditions or on-foot looting)
   - [ ] 8.1 Define loot tables and containers for each location in `data/`
     - _Requirements: 1.4, 10.1_
-  - [ ] 8.2 Implement searching containers with a world-time duration and noise
+  - [x] 8.2 Implement searching containers with a world-time duration and noise
     - _Requirements: 10.1_
-  - [ ] 8.3 Implement backpack capacity, carrying, and unloading to base storage
+  - [x] 8.3 Implement backpack capacity, carrying, and unloading to base storage
     - _Requirements: 10.2, 10.5_
-  - [ ] 8.4 Implement the vehicle as a capacity and speed upgrade with fuel use and noise
+  - [x] 8.4 Implement the vehicle as a capacity and speed upgrade with fuel use and noise
     - _Requirements: 10.3_
-  - [ ] 8.5 Implement location depletion and slow restock
+  - [x] 8.5 Implement location depletion and slow restock
     - _Requirements: 10.4_
-  - [ ] 8.6 Checkpoint: complete a run to a store and return with useful supplies
+  - [x] 8.6 Checkpoint: complete a run to a store and return with useful supplies
     - _Requirements: 10.1–10.5_
 
+- [x] 10. A large streamed world, walking, vehicles and looting
+  - [x] 10.1 Generate the world outside the town in chunks from a fixed seed (roads, houses, fields, woods) and draw only the chunks near the player
+    - _Requirements: 4.1, 4.2, 4.8_
+  - [x] 10.2 Replace click-to-travel with a walking character, collision, a following camera, waypoints and a corner map
+    - _Requirements: 4.3, 4.4, 4.5, 4.6, 4.7_
+  - [x] 10.3 Add seven driveable vehicles with fuel, wear, crashes, surfaces, a dealership and online delivery
+    - _Requirements: 10.5, 10.6_
+  - [x] 10.4 Add vehicle parts (hitch, trailer, roof rack, bull bar, extra tank), refuelling and repairs
+    - _Requirements: 10.6, 10.7_
+  - [x] 10.5 Add weights, the backpack, cargo loading and unloading
+    - _Requirements: 10.3, 10.4_
+  - [x] 10.6 Add searching houses after the outbreak with deterministic loot
+    - _Requirements: 10.1, 10.2, 10.8_
+  - [x] 10.7 Browser tests for the world, vehicles and looting; move the older tests to walking
 - [ ] 9. Final: performance and polish
   - [ ] 9.1 Profile with a full base and the zombie cap reached; fix hotspots to hold about 60 fps
     - _Requirements: 13.1, 13.2_

@@ -23,17 +23,20 @@ Besides the browser tests, always run `npm run build`, which typechecks and buil
 
 | Script | Checks | Covers |
 | --- | --- | --- |
-| `e2e` | 15 | Title screen, new game, the clock, travel, shops, buying a plot, saving and resuming |
-| `build` | 22 | Online store, orders, the storage list, placing, dragging lines, refusals, crew build times, clicking a structure, take down, save and reload |
+| `e2e` | 18 | Title screen, new game, the clock, walking to shops, waypoints, buying a plot, saving and resuming |
+| `world` | 28 | World size, houses and ids, chunk streaming, walking, collision, the edge, cleared land, the corner map, saving the position, old saves |
+| `vehicles` | 45 | The seven vehicles, buying, getting in and out, speed and surfaces, fuel, crashes, parts, repairs, a trailer, cheats, saving |
+| `loot` | 29 | Searching houses, loot that is the same every time, the backpack, leftovers, vehicles taking the load, the cargo panel, saving |
+| `build` | 23 | Online store, orders, the storage list, placing, dragging lines, refusals, crew build times, clicking a structure, take down, save and reload |
 | `models` | 7 | Finished models stand on the ground; blueprints are never squashed |
 | `land` | 20 | Product pictures, landscaping, buying more land, building on new land, save |
-| `woods` | 6 | Trees are cleared around bought land; travelling to the woods |
+| `woods` | 7 | Trees are cleared around bought land; the long walk to the woods |
 | `lifecycle` | 30 | Prices and stock through the 30 days, panic, the outbreak, closing shops |
 | `survival` | 45 | Food, water, power, farms, links, warning signs, the advisor |
 | `product-sheet` | 20 | The product sheet for every product |
 | `speed` | 24 | 1x, 4x, 12x, the F key, holding speed while busy, slowing down on warnings, returns |
 | `zoom` | 8 | Zooming toward the pointer |
-| `view-turn` | 21 | Turning the view, the compass, keys, right-drag, panning at every angle, land edge names |
+| `view-turn` | 21 | Turning the view, the compass, keys, right-drag, walking at every angle, land edge names |
 | `view-tilt` | 17 | Tilting, limits, reset, squares stay square straight down |
 | `architect` | 19 | Planning on four plots, build, finishing, running by itself for 8 people |
 | `architect-ui` | 11 | The Architect panel, sandbox funds, build button |
@@ -50,6 +53,9 @@ The counts are what passes today. If you add a check, update the number here.
 - Game state is set up with the dev hooks (`give`, `setMoney`, `ownPlot`, `placeDone`, `skipToDay`, `advanceHours`) so the
   tests do not depend on long play. `survivalOff(true)` turns hunger and thirst off for tests that jump through time.
 - Clicks on the map use `window.__game.project(x, z, height)` to turn a map position into a pixel.
+- Long walks are done with `teleport(x, z)` and `teleportTo(place)`; `walk(dx, dz, seconds)` and `drive(throttle, steer, seconds)`run
+  the real movement and collision rules without keys or frames. Tests can also `import('/src/world/gen.ts')` (and other modules) inside
+  the page to read the game's own data.
 - Waits are generous because headless Chrome without a GPU draws only a few frames a second. A key held for half a second
   may be seen by no frame at all, so tests hold keys for a few seconds.
 - Time moves at 24x, so a long wait in the test is a lot of game time. Compare with tolerances, not exact numbers.

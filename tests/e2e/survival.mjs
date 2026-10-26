@@ -157,7 +157,7 @@ await page.waitForTimeout(2500);
 await page.getByText('Continue').click();
 await page.waitForTimeout(1500);
 st = await S();
-check('battery charge survives save and reload', st.pieces.some((p) => p.type === 'battery_bank' && (p.level ?? 0) > 0.3) && st.version === 6);
+check('battery charge survives save and reload', st.pieces.some((p) => p.type === 'battery_bank' && (p.level ?? 0) > 0.3) && st.version === 8);
 
 // =============================================================== 4. Generators and fuel
 await fresh();

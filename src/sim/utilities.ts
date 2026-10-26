@@ -67,6 +67,8 @@ export interface CheatFlags {
   freeFuel: boolean;
   /** Crashes do no damage. */
   noDamage: boolean;
+  /** Searching a house takes no time. */
+  quickSearch: boolean;
 }
 
 /** What the survival rules keep between steps. None of this is saved: it is rebuilt from the pieces. */
@@ -92,7 +94,7 @@ export function runtimeOf(state: GameState): Runtime {
     rt = {
       topo: null, pending: 0, issues: new Map(), powerSat: new Map(), surplusFlow: 0,
       disabled: false,
-      cheats: { hourLock: null, instantBuild: false, noWear: false, freeWork: false, godMode: false, freeShop: false, freeze: false, freeFuel: false, noDamage: false },
+      cheats: { hourLock: null, instantBuild: false, noWear: false, freeWork: false, godMode: false, freeShop: false, freeze: false, freeFuel: false, noDamage: false, quickSearch: false },
     };
     runtimes.set(state, rt);
   }

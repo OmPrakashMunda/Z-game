@@ -6,7 +6,7 @@ You start with $500,000. There is no income: this is all you have to prepare wit
 
 ## Plots
 
-You can own one base plot. Buy it at Hillside Realty (travel there first).
+You can own one base plot. Buy it at Hillside Realty (walk to its door and press `Space`).
 
 | Plot | Size | Price | Water |
 | --- | --- | --- | --- |
@@ -38,10 +38,13 @@ The names of the edges ("upper right" and so on) follow the way you have turned 
 | Pharmacy | Medical supplies (10% dearer) |
 | Gun shop | Weapons, ammunition, armour |
 | Farm supply | Seeds, soil, feed, farm structures |
-| Gas station | Fuel (15% dearer) |
+| Gas station | Fuel (15% dearer); the pumps fill a parked vehicle |
+| Rusty Wheels Autos | Seven vehicles, trailers, tow hitches, roof racks, bull bars, extra tanks, spare parts (see [Vehicles](Vehicles.md)) |
 
 **SurvivalMart Online** sells everything the shops do plus the whole range of structures, from anywhere, with instant
 free delivery, for a 6% convenience markup. Orders go straight into storage.
+
+You must stand at a shop's door to order from it. A vehicle bought at the dealership is parked outside it; one ordered online is parked beside your land.
 
 Each shop has limited stock that comes back over the days (20% of normal each day).
 

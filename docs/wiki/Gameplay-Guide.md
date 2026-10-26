@@ -5,8 +5,9 @@
 Survive the outbreak on Day 30 with your family. Everything you do before then is preparation. After Day 30 the shops
 close, nothing can be ordered or returned, and only what you built and stored counts.
 
-The game is not real-time while you prepare. The clock runs faster than real time (default: a day in an hour), you travel
-by clicking places on the map, and you build by placing structures from storage.
+The world clock runs faster than real time (default: a day in an hour). You are a person on a map 1.3 km across: you walk,
+run or drive to the shops and to your land (see [The world and walking](World-and-Walking.md) and [Vehicles](Vehicles.md)),
+and you build by placing structures from storage while you stand at your base.
 
 ## A sensible order
 
@@ -23,6 +24,8 @@ by clicking places on the map, and you build by placing structures from storage.
 7. **Tools and spares.** Things wear out. Keep a toolbox, shovel, power tools and welding kit, and materials for repairs.
    See [Upkeep and repairs](Upkeep-and-Repairs.md).
 8. **Buy early.** From Day 20 prices rise and shelves empty.
+9. **Get wheels and fuel.** After the outbreak a vehicle with a full tank is how you reach the far houses. Buy it, a spare
+   tank or two of fuel in cans, and spare parts while the shops are open.
 
 ## The panels
 
@@ -36,8 +39,13 @@ by clicking places on the map, and you build by placing structures from storage.
 
 ## Time and speed
 
-See [Getting started](Getting-Started.md#game-speed). Travel on the map costs game time: 6 minutes plus about 0.22 minutes
-per metre. Construction is done by a crew of three over game time. Every structure has a build time.
+See [Getting started](Getting-Started.md#game-speed). Walking and driving are in real time, so a long trip across the map at
+4.6 m/s is a few game hours at the normal clock. Construction is done by a crew of three over game time. Every structure has a
+build time. Searching a house takes 6 to 15 game minutes.
+
+## After the outbreak
+The shops close and the houses empty. Every house can be searched once for food, water, medicine, tools, fuel and spare parts: see
+[Looting and carrying](Looting-and-Carrying.md). Carry what you find home, or load it into a vehicle.
 
 ## Losing
 

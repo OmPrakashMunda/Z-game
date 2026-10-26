@@ -115,6 +115,10 @@ export interface GameState {
   plotId: PlotId | null;
   expansion: Expansion;
   player: PlayerState;
+  /** What the player carries on their back, by item id. Emptied into storage at the base. */
+  pack: Record<string, number>;
+  /** Houses that have been searched, by house id: the day, and any goods that did not fit and were left behind. */
+  looted: Record<string, { day: number; left: Record<string, number> }>;
   /** The vehicles the player owns, wherever they are parked. */
   vehicles: OwnedVehicle[];
   /** The vehicle being driven, if any. */
@@ -134,7 +138,7 @@ export interface GameState {
 }
 
 /** Bump when the shape of GameState changes. Older saves are filled in by save/store.ts. */
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 export function initialSurvival(): SurvivalState {
   return {
@@ -169,6 +173,8 @@ export function createNewGame(seed = Date.now() % 2_147_483_647): GameState {
     plotId: null,
     expansion: { n: 0, e: 0, s: 0, w: 0 },
     player: { health: 100, hunger: 100, thirst: 100, fatigue: 100 },
+    pack: {},
+    looted: {},
     vehicles: [],
     driving: null,
     storage: {},

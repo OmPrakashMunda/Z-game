@@ -7,11 +7,13 @@ src/
   main.ts            Wires everything together: game loop, input, screens, save and load, dev hooks
   cheats.ts          Cheat codes (session-only)
   config.ts          Reads VITE_TIME_SCALE
-  input.ts           Keyboard: held keys (pan, turn, tilt) and single presses
+  input.ts           Keyboard: held keys (walk, turn, tilt) and single presses
   style.css          The whole look of the UI
   data/              Plain tables: no logic that touches the game state
     balance.ts         Tunable numbers (money, days, crew size, prices)
-    city.ts            The map: roads, buildings, plots, forest
+    city.ts            The hand-made town: roads, shops, plots, props, the dirt road; world size
+    vehicles.ts        The seven vehicles and the parts that fit them
+    weights.ts         How heavy things are; the backpack size
     items.ts           Supplies, plus every structure as a product
     stores.ts          What each shop (and the online store) stocks
     structures.ts      Every placeable structure: size, price, strength, build time, look
@@ -30,9 +32,19 @@ src/
     upkeep.ts          Wear, repair, upgrade, clean
     advisor.ts         The "what to do next" list
     architect.ts       Base analysis, layout, land planning, test run, build
-    travel.ts          Travel time on the map
+    places.ts          Where the player is: at a door, at the base, or outside
+    vehicles.ts        Owned vehicles: driving, fuel, crashes, repairs, parts, parking, delivery
+    cargo.ts           The backpack and a vehicle's load: picking up, loading, unloading
+    loot.ts            What is inside each house, doors, and the search itself
+  world/             The generated world outside the town (no graphics code)
+    gen.ts             Roads, houses, fields and trees for each 80 m chunk, from a fixed seed
+    collide.ts         What is solid near a point; moving a walker with sliding
+    clearing.ts        Trees cleared around land you own (read by drawing and by collision)
   render/            Three.js
-    scene.ts           Renderer, camera, picking, highlights, cables and pipes, clearing trees
+    scene.ts           Renderer, camera (follows the player), picking, highlights, cables and pipes
+    streamer.ts        Builds and drops the chunks near the player; moves the mist at the edge
+    forest.ts          Trees, bushes and rocks as instanced meshes, one set per chunk
+    vehicles.ts        Vehicle and trailer models, wheels, one layer for all of them
     structures.ts      Procedural models for each structure
     models.ts          Shared model parts
     lines.ts           Fence, wall and hedge geometry
@@ -64,7 +76,8 @@ docs/wiki/           These pages
 ## Time
 
 The clock advances `simStep x timeScale x speed` game seconds per fixed step. `stepSim` runs, in order: daily restock,
-construction, wear, survival, deliveries, and the outbreak check. Travel runs the same steps with its own time.
+construction, wear, survival, searching, deliveries, and the outbreak check. Walking and driving are not part of `stepSim`:
+they run once per frame in real time (`updateMovement` in `main.ts`), and only change `state.pos` and the vehicle.
 
 ## State that is saved and state that is not
 
@@ -74,6 +87,22 @@ kept in a `WeakMap` keyed by the state object, so loading a game starts with cle
 
 Saves are versioned (`SAVE_VERSION`). New fields are optional where possible (`Piece.upgrade`, `Piece.dirt`), so older saves
 load without a bump. When the shape really changes, bump the version and fill the field in `save/store.ts`.
+
+## The world, chunks and walking
+- ``src/data/city.ts`` holds the hand-made town (``TOWN_HALF`` = 88 m, the shops, plots, props, the dirt road) and ``WORLD_HALF``
+  (640 m). Everything else comes from ``world/gen.ts``.
+- ``getChunk(cx, cz)`` returns the roads, houses, fields and trees of one 80 m square. It is pure: the same coordinates give the
+  same chunk. Houses are placed on a lattice beside each road, so a house has the same id (``hx200_3_p``) however it is
+  reached, and ``houseById`` rebuilds one from its id. Chunks are kept in a small cache.
+- ``render/streamer.ts`` builds the chunks within 200 m of the player (at most about 5 ms of work per frame, nearest first) and
+  drops them past 280 m. The mist rectangle in ``edgefade.ts`` follows the loaded area, so loading is hidden.
+- ``state.pos`` is the player. ``state.at`` is worked out from it every frame by ``sim/places.ts`` (``locate``): a shop door
+  within 5 m, your land within 6 m, or ``outside``. The rest of the rules keep reading ``state.at``.
+- ``world/collide.ts`` gives the solid boxes near a point (town buildings and props, houses, tree trunks that have not been
+  cleared). Walking and driving both use it.
+- ``state.vehicles`` are the owned vehicles and ``state.driving`` the one being driven. ``driveStep`` in ``sim/vehicles.ts``
+  moves it; the player's position follows.
+- ``state.pack`` is the backpack and ``state.looted`` the searched houses. A search in progress is a runtime note, not saved.
 
 ## Grid and pieces
 
@@ -87,7 +116,8 @@ runs along z on the line `x = cx`. Corner posts are owned by one piece per corne
 ## Dev hooks
 
 `npm run dev` exposes `window.__game` (state, `skipToDay`, `placeDone`, `give`, `setMoney`, `advanceHours`, `summary`,
-`issues`, `scenery`, `turnView`, `tiltView`, and more). They are used by the tests and are not in the production build.
+`issues`, `scenery`, `turnView`, `tiltView`, `teleport`, `teleportTo`, `player`, `walk`, `giveVehicle`, `drive`,
+`loot`, `world` and more). They are used by the tests and are not in the production build.
 
 ## Adding things
 

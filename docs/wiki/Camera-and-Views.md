@@ -10,7 +10,7 @@ with distance.
 - **Tilt** from 30 degrees (low, from the side) up to 88 degrees (nearly straight down): `Z` / `C` (hold), right-drag up
   and down, or the chevron buttons in the top bar. The default is 52 degrees.
 - **Compass**: the needle points north. Click it to reset turn and tilt.
-- Moving the map (`WASD`, drag) always follows the screen: up is away from you at every angle.
+- Walking (`WASD`) always follows the screen: up is away from you at every angle. The camera follows the player; dragging the map looks around until you move again, within 140 m of the player.
 - The names of land edges in the **Buy more land** panel follow the turn.
 
 ### Why a square does not always look square

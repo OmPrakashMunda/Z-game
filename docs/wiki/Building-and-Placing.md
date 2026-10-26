@@ -5,7 +5,7 @@ There is no separate building mode. You pick something up from storage, put it d
 ## Putting things down
 
 1. Buy it (the online store delivers instantly) or find it in your storage.
-2. Press `I`, find the row and press **Place**. If you are not at your base you travel there first.
+2. Walk to your base (stand on or just beside your land), press `I`, find the row and press **Place**. Away from your base the button sets a waypoint to it instead.
 3. A small **placing bar** shows what you hold. The storage list closes so the land is clear, and a grid appears. A
    green or red preview follows the pointer and says why a spot is not allowed.
 4. Click to place. `R` rotates. `1` to `9` switch to another structure in storage. The **Storage (I)** button reopens the

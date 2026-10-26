@@ -33,7 +33,10 @@ Type the code to turn it on. Type it again to turn it off.
 | `FREEREPAIRS` | Repairs, upgrades and cleaning cost nothing and need no tools (you still have to be at your base). |
 | `GODMODE` | Your family never gets hungry or thirsty and never loses health. |
 | `FREESHOP` | Everything in every shop costs nothing. |
-| `FREEZETIME` | The world clock stops. Travel on the map still works. |
+| `FREEZETIME` | The world clock stops. You can still walk and drive. |
+| `ENDLESSFUEL` | Vehicles use no fuel. |
+| `TOUGHCARS` | Crashes do no damage to your vehicles. |
+| `QUICKSEARCH` | Searching a house takes no time. |
 
 ## One-off codes
 
@@ -49,7 +52,7 @@ Type the code to turn it on. Type it again to turn it off.
 | `GIVETOOLS` | Gives the toolbox, shovel, power tools and welding kit, 20 of each repair material and 10 soap. |
 | `STOCKUP` | Gives 30 cases of canned food and bottled water, rice, fuel, seeds and animal feed. |
 | `FULLTANKS` | Fills every water tank and battery. |
-| `WOODSBASE` | Buys the Deep Woods Clearing if you have no plot, buys land to grow it to about 46 x 44 m, builds the Architect's whole design and finishes it. Adds funds if needed. It will not run if you already own a different plot. |
+| `WOODSBASE` | Buys the Deep Woods Clearing if you have no plot, buys land to grow it to about 46 x 44 m, builds the Architect's whole design and finishes it. Adds funds if needed. It will not run if you already own a different plot. It also moves you to the base. |
 | `NORMALTIME` | Turns off `NONIGHT`, `NODAY` and `FREEZETIME`. |
 | `NORMALWEATHER` | Turns off `NORAIN` and `RAINALLDAY`. |
 | `RESETCHEATS` | Turns every switch off. |

@@ -8,6 +8,9 @@ Day 30 the shops close and the outbreak begins.
 - [Getting started](Getting-Started.md): install, run, and your first ten minutes
 - [Controls](Controls.md): every key and mouse action
 - [Gameplay guide](Gameplay-Guide.md): the 30 days, what to do and in what order
+- [The world and walking](World-and-Walking.md): the big map, chunks, walking, waypoints
+- [Vehicles](Vehicles.md): the seven vehicles, driving, fuel, repairs and parts
+- [Looting and carrying](Looting-and-Carrying.md): searching houses after the outbreak, weight, the backpack
 - [Economy and shops](Economy-and-Shops.md): money, stores, panic buying, returns, land
 - [Building and placing](Building-and-Placing.md): placing from storage, the structure card, moving and rotating
 - [Survival and utilities](Survival-and-Utilities.md): food, water, power and how they connect

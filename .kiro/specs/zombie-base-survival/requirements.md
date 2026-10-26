@@ -6,7 +6,7 @@ A single-player, browser-based zombie survival game. The player starts with a la
 
 This spec covers the first playable version (milestones M0–M7). Cloud saves, the Gemini AI Director, and survivors/other humans are planned for later and are out of scope here, except where an interface is needed so they can be added without rewriting.
 
-**Interaction model:** the preparation phase plays like a city-management game. The player sees the town from above, clicks a place to travel there (which costs game time), and spends their days buying, building and stocking supplies. There is no walking character yet.
+**Interaction model:** the player is a person on a large map (about 1.3 km across). They walk or drive to the shops and to their land, buy, build and stock supplies before the outbreak, and search houses for supplies after it. There is no click-to-travel.
 
 **Decisions already made**
 - Visual style: flat ground plane with low-poly 3D objects, tilted orthographic camera, level 1 detail (stylized, many props, visible upgrades).
@@ -38,13 +38,13 @@ This spec covers the first playable version (milestones M0–M7). Cloud saves, t
 1. WHILE the tab is visible and neither the Settings nor the Save & Exit screen is open, the system SHALL advance world time by real elapsed time multiplied by the time scale.
 2. WHEN the tab is closed or hidden THEN the system SHALL stop the world clock, and WHEN the player returns THEN the system SHALL NOT apply any catch-up time.
 3. IF a single frame's real elapsed time exceeds 250 ms THEN the system SHALL clamp it to 250 ms.
-4. WHEN real-time actions such as combat or zombie movement happen (after the outbreak) THEN the system SHALL use real elapsed time, not scaled time. Travel on the map costs game time instead (see Requirement 4).
+4. WHEN real-time actions such as combat or zombie movement happen (after the outbreak) THEN the system SHALL use real elapsed time, not scaled time. Walking and driving run in real time (see Requirements 4 and 10).
 5. WHEN the game starts a new run THEN the system SHALL begin at Day 1, 08:00.
 6. The system SHALL show the current day and time of day on the HUD and SHALL NOT provide a pause control outside the Settings and Save & Exit screens.
 7. WHEN world time changes THEN the system SHALL update scene lighting to match dawn, day, dusk and night.
 
 8. The system SHALL let the player fast-forward the clock to 4x or 12x the normal rate and return to normal, from the top bar or with the F key. The chosen speed SHALL NOT be saved, so every load starts at normal speed.
-9. WHILE a window is open, build mode is active or the player is travelling, the system SHALL run the clock at normal speed and show that the fast speed is held.
+9. WHILE a window is open, or build mode is active, the system SHALL run the clock at normal speed and show that the fast speed is held.
 10. WHEN the outbreak starts, a warning appears, or the family's thirst or hunger falls below 35 or health below 70 THEN the system SHALL return to normal speed.
 11. The system SHALL let the player turn the view all the way round (360 degrees) with the Q and E keys, by dragging with the right mouse button, or with the turn buttons in the top bar. The player SHALL also be able to tilt the view from a low side angle (30 degrees) to almost straight down (88 degrees) with the Z and C keys, by dragging up and down with the right mouse button, or with the tilt buttons; straight down, squares SHALL appear as squares at every turn angle. A compass SHALL show which way north is and SHALL reset both turn and tilt when clicked. Panning, picking, placing and the names of land edges SHALL follow the turned view, and trees SHALL be cleared around owned land on every side so the base can be seen from any angle.
 ### Requirement 3: Saving and loading
@@ -58,20 +58,20 @@ This spec covers the first playable version (milestones M0–M7). Cloud saves, t
 4. IF a save is unreadable or has an unknown version THEN the system SHALL keep the previous good save, tell the player, and offer to start a new game.
 5. WHEN the player chooses New Game THEN the system SHALL ask for confirmation before overwriting an existing save.
 
-### Requirement 4: City map and click-to-travel
+### Requirement 4: A large streamed world, walking and waypoints
 
-**User Story:** As a player, I want to look over a small city like a management game and click a place to go there, so that my time goes into buying, building and stocking rather than walking.
+**User Story:** As a player, I want to walk around a large world and see it fill in around me, so that getting to the shops and my land is part of the game.
 
 #### Acceptance Criteria
-1. The system SHALL provide one city map, defined in data, containing a motel (the player's temporary home), a supermarket, hardware store, gas station, pharmacy, farm supply store, gun shop, vehicle dealer, real estate office and four base plots.
-2. The system SHALL show the city through a tilted orthographic camera that the player can pan (drag or keyboard) and zoom within limits, and SHALL NOT show a walking player character during the preparation phase.
-3. WHEN the player hovers a place THEN the system SHALL highlight it and show its name and travel time.
-4. WHEN the player clicks a place THEN the system SHALL show a panel with its details and a travel action.
-5. WHEN the player travels THEN the system SHALL advance the game clock by a travel time based on distance, play a short time-lapse, and then open the place (a shop, the realty office, or a details panel).
-6. The system SHALL mark the player's current place and the owned base on the map.
-7. WHERE a place is closed or unavailable THEN the system SHALL say why and SHALL NOT allow entering it.
-8. Walking and supply runs outside the base are planned for after the outbreak and are out of scope until then.
 
+1. The system SHALL provide a hand-made town (a motel, a supermarket, hardware store, gas station, pharmacy, farm supply store, gun shop, vehicle dealer, real estate office and four base plots) inside a generated world at least ten times the area of the first version, with roads, houses, fields and woods generated from a fixed seed.
+2. The system SHALL create the 3D objects of the world only near the player, in fixed-size chunks, and SHALL drop them when the player is far away. A chunk SHALL be rebuilt identically from its coordinates, so nothing but changes needs saving.
+3. The system SHALL show a walking character that the player moves with W A S D (and Shift to run), relative to the view, that is stopped by buildings and trees, and that the camera follows. Dragging the map SHALL look around until the player moves again.
+4. The system SHALL work out where the player is from where they stand: at a shop's door, at their base (on or just beside their land), or outside. Rules that need a place (ordering, buying land, placing and repairing) SHALL depend on that.
+5. WHEN the player clicks a shop, plot or vehicle THEN the system SHALL show its card with the distance and a way to set a waypoint. The player SHALL be able to set a waypoint from a corner map that can also show the whole world.
+6. WHEN the player stands at a shop door THEN the system SHALL show a hint, and the use key (Space) SHALL go in. WHERE a place is closed THEN the system SHALL say why.
+7. The system SHALL save the player's position and SHALL place the player at their old place when loading a save from before walking existed.
+8. The system SHALL keep drawing cost modest (a bounded number of chunks, a small time budget per frame for building them).
 ### Requirement 5: Economy and shopping
 
 **User Story:** As a player, I want to spend my money on supplies and have them delivered, so that I can prepare my base.
@@ -84,7 +84,7 @@ This spec covers the first playable version (milestones M0–M7). Cloud saves, t
 5. WHEN the game reaches Day 20 THEN the system SHALL begin raising prices and reducing stock gradually, and SHALL show news or radio messages hinting at the outbreak.
 6. WHEN the outbreak starts THEN the system SHALL close all stores and cancel the ordering menu.
 7. IF an order is still in transit when the outbreak starts THEN the system SHALL deliver it normally if its delivery time has already passed, otherwise SHALL refund it in full.
-8. WHEN the player wants to order THEN the system SHALL require them to be at that store (by travelling there) and to own a base plot for deliveries.
+8. WHEN the player wants to order THEN the system SHALL require them to be at that store (by standing at its door) and to own a base plot for deliveries.
 9. The system SHALL show the player's base storage, pending and recent orders, and a news log in panels they can open at any time.
 
 10. The system SHALL let the player return unused storage items that the online store sells, for 80% of the online price. Returned items SHALL go back on the online shelf, up to its stock cap. Fresh produce and placed structures SHALL NOT be returnable (placed structures use Take down). The refund SHALL NOT depend on panic prices, and returns SHALL be closed after the outbreak.
@@ -165,17 +165,20 @@ This spec covers the first playable version (milestones M0–M7). Cloud saves, t
 7. IF the player's health reaches zero THEN the system SHALL end the run and offer to load the last save or start a new game.
 8. The system SHALL continue indefinitely after the outbreak starts, with no fixed end.
 
-### Requirement 10: Supply runs
+### Requirement 10: Supply runs, vehicles and looting
 
-**User Story:** As a player, I want to leave my base to loot the city and bring back supplies, so that I'm never fully safe inside.
+**User Story:** As a player, I want to leave my base to search houses and bring back supplies, with a vehicle to go further, so that I am never fully safe inside.
 
 #### Acceptance Criteria
-1. WHEN the outbreak has started THEN the system SHALL allow the player to loot containers inside city locations, taking a duration in game time per search.
-2. The system SHALL limit what the player can carry using backpack capacity.
-3. WHEN the player uses a vehicle THEN the system SHALL increase carry capacity and travel speed, consume fuel, and make noise.
-4. WHEN a location is looted THEN the system SHALL deplete its loot and SHALL restore it slowly over many game days.
-5. WHEN the player carries loot back to base storage THEN the system SHALL add it to the base inventory.
 
+1. WHEN the outbreak has started THEN the system SHALL let the player search each house once, taking game time, and SHALL stop the search if the player moves away. Before the outbreak houses SHALL NOT be searchable.
+2. What a house holds SHALL be decided by its id, its type and the game seed, SHALL be the same on every visit, SHALL be better the further the house is from the town, and a few houses SHALL already be empty.
+3. The system SHALL give every carriable item a weight and SHALL limit what the player carries with a backpack. Goods SHALL go to a vehicle at hand first. What does not fit SHALL stay in the house and be available later.
+4. WHEN the player reaches their base THEN the system SHALL move the backpack into storage. The player SHALL be able to load and unload a vehicle from storage at the base.
+5. The system SHALL sell seven vehicles (bicycle, scooter, sedan, pickup, van, SUV, box truck) with different speed, tank, fuel use, durability, cargo, noise, off-road ability and towing, at the dealership and in the online store. A vehicle SHALL be parked at the dealership or beside the player's land.
+6. WHEN driving THEN the system SHALL use fuel by distance, SHALL slow the vehicle on open ground according to its off-road ability, SHALL damage it in crashes, and SHALL stop it when it is out of fuel or broken. The player SHALL be able to refuel (from cans, or at the pumps before the outbreak) and repair (with spare parts).
+7. The system SHALL support parts: a tow hitch, a trailer (which follows the hitch), a roof rack, a bull bar and an extra fuel tank, fitted and removed at the base.
+8. Vehicles, the backpack and searched houses SHALL be saved.
 ### Requirement 11: Visual style and assets
 
 **User Story:** As a player, I want a consistent, detailed low-poly look, so that the base feels alive.

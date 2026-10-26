@@ -16,6 +16,8 @@ export interface MinimapData {
   /** The land the player owns, if any. */
   land: Rect | null;
   waypoint: MapPoint | null;
+  /** The houses searched so far, or null before the outbreak when no house can be searched. */
+  looted: Record<string, unknown> | null;
 }
 
 const SMALL = 176;
@@ -90,7 +92,7 @@ export class Minimap {
   /** Redraw if something moved. Drawing is limited to a few times a second. */
   update(d: MinimapData, force = false): void {
     this.data = d;
-    const key = [this.big, Math.round(d.x / 1.5), Math.round(d.z / 1.5), Math.round(d.heading * 6), d.land?.x, d.land?.w, d.land?.d, d.waypoint?.x, d.waypoint?.z].join('|');
+    const key = [this.big, Math.round(d.x / 1.5), Math.round(d.z / 1.5), Math.round(d.heading * 6), d.land?.x, d.land?.w, d.land?.d, d.waypoint?.x, d.waypoint?.z, d.looted ? Object.keys(d.looted).length : -1].join('|');
     const now = performance.now();
     if (!force && (key === this.lastKey || now - this.lastDraw < 120)) return;
     this.lastKey = key;
@@ -144,7 +146,7 @@ export class Minimap {
       g.stroke();
     }
 
-    // Houses
+    // Houses. After the outbreak the ones nobody has searched yet stand out.
     g.fillStyle = '#b3a58a';
     const c0x = Math.floor((cx - reach) / CHUNK);
     const c1x = Math.floor((cx + reach) / CHUNK);
@@ -157,6 +159,7 @@ export class Minimap {
           const f = footprint(h);
           const w = Math.max(2, f.w * scale);
           const dd = Math.max(2, f.d * scale);
+          if (d.looted) g.fillStyle = d.looted[h.id] ? '#5b574f' : '#f0cf62';
           g.fillRect(px(f.x) - w / 2, pz(f.z) - dd / 2, w, dd);
         }
       }

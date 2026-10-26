@@ -73,6 +73,8 @@ export function migrate(envelope: SaveEnvelope): GameState {
       thirst: num(p.thirst, d.player.thirst),
       fatigue: num(p.fatigue, d.player.fatigue),
     },
+    pack: { ...(s.pack ?? {}) },
+    looted: Object.fromEntries(Object.entries(s.looted ?? {}).map(([id, l]) => [id, { day: num(l?.day, 1), left: { ...(l?.left ?? {}) } }])),
     vehicles: Array.isArray(s.vehicles) ? s.vehicles.map((v) => ({ ...v, speed: 0, cargo: { ...(v.cargo ?? {}) }, parts: [...(v.parts ?? [])] })) : [],
     driving: null,
     storage: { ...(s.storage ?? {}) },
