@@ -1,4 +1,4 @@
-/** Keyboard input: held keys move the map camera, single presses trigger actions. */
+/** Keyboard input: held keys walk the player and turn the view, single presses trigger actions. */
 export class Input {
   private readonly down = new Set<string>();
   private readonly pressedHandlers = new Map<string, Array<() => void>>();
@@ -28,13 +28,18 @@ export class Input {
     this.pressedHandlers.set(code, list);
   }
 
-  /** Camera pan direction on screen, each axis -1 to 1. */
-  pan(): { x: number; y: number } {
+  /** Walking direction on screen (right and up), each axis -1 to 1. */
+  move(): { x: number; y: number } {
     const k = (c: string) => (this.down.has(c) ? 1 : 0);
     return {
       x: k('KeyD') + k('ArrowRight') - k('KeyA') - k('ArrowLeft'),
       y: k('KeyW') + k('ArrowUp') - k('KeyS') - k('ArrowDown'),
     };
+  }
+
+  /** Whether the run key is held. */
+  sprint(): boolean {
+    return this.down.has('ShiftLeft') || this.down.has('ShiftRight');
   }
 
   /** View turn direction: 1 for counter-clockwise (Q), -1 for clockwise (E). */

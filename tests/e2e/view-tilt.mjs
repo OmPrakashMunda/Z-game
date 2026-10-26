@@ -110,18 +110,26 @@ s = await set(0, 52);
 console.log(`0 degrees, tilt 52: sides ${s.la.toFixed(0)} x ${s.lb.toFixed(0)} px, corner ${s.angle.toFixed(1)} degrees`);
 check('looking along an axis the square is a rectangle (right angles)', Math.abs(s.angle - 90) < 1.5);
 
-// Pan works at steep and shallow tilt
+// Walking keys follow the view: W goes away from the camera, D goes to the right of the screen
+const walkDir = async (key, ms = 2500) => {
+  const q0 = await G(() => window.__game.player());
+  await page.keyboard.down(key);
+  await page.waitForTimeout(ms);
+  await page.keyboard.up(key);
+  await page.waitForTimeout(300);
+  const q1 = await G(() => window.__game.player());
+  const dx = q1.x - q0.x;
+  const dz = q1.z - q0.z;
+  const len = Math.hypot(dx, dz);
+  return { len, dx: dx / (len || 1), dz: dz / (len || 1) };
+};
+// Walking works at steep and shallow tilt
 for (const [a, t] of [[45, 88], [135, 35]]) {
   await G(([a, t]) => { const g = window.__game; g.turnView(a - g.viewDegrees()); g.tiltView(t - g.tiltDegrees()); g.snapCamera(-30, 30); g.settleCamera(); }, [a, t]);
   await page.waitForTimeout(400);
-  const p0 = await G(() => window.__game.project(-30, 30, 0));
-  await page.keyboard.down('KeyW');
-  await page.waitForTimeout(2500);
-  await page.keyboard.up('KeyW');
-  await page.waitForTimeout(300);
-  const p1 = await G(() => window.__game.project(-30, 30, 0));
-  check(`W moves the map up the screen at turn ${a}, tilt ${t}`, p1.y > p0.y + 8, `(${Math.round(p0.y)} -> ${Math.round(p1.y)})`);
-}
+  const ax = await G(() => window.__game.viewAxes());
+  const w = await walkDir('KeyW');
+  check(`W walks up the screen at turn ${a}, tilt ${t}`, w.len > 1 && w.dx * ax.up.x + w.dz * ax.up.z > 0.93, `(${w.len.toFixed(1)} m)`);}
 
 // Pictures: top-down, and low from the side
 await G(() => { const g = window.__game; g.turnView(20 - g.viewDegrees()); g.tiltView(88 - g.tiltDegrees()); g.snapCamera(-55, 64); g.settleCamera(); });

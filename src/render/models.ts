@@ -138,6 +138,11 @@ function addSign(parent: THREE.Object3D, text: string, bg: number, fg: string, w
 
 // ---------------------------------------------------------------- Buildings
 
+/** Turn from the model's own frame (door toward +z) to face the given side. */
+function facingAngle(f: BuildingDef['facing']): number {
+  return f === 'S' ? 0 : f === 'N' ? Math.PI : f === 'E' ? Math.PI / 2 : -Math.PI / 2;
+}
+
 export function makeBuilding(def: BuildingDef): THREE.Group {
   const g = new THREE.Group();
   const { w, d, h } = def;
@@ -152,7 +157,7 @@ export function makeBuilding(def: BuildingDef): THREE.Group {
     makeShopDetails(g, def);
   }
 
-  g.rotation.y = def.facing === 'S' ? 0 : Math.PI;
+  g.rotation.y = facingAngle(def.facing);
   g.position.set(def.x, 0, def.z);
   return mergeStatic(shadow(g)) as THREE.Group;
 }
@@ -265,7 +270,7 @@ export function makeGasCanopy(def: BuildingDef): THREE.Group {
     pump.position.set(px, 0, cz);
     g.add(pump);
   }
-  g.rotation.y = def.facing === 'S' ? 0 : Math.PI;
+  g.rotation.y = facingAngle(def.facing);
   g.position.set(def.x, 0, def.z);
   return mergeStatic(shadow(g)) as THREE.Group;
 }

@@ -32,7 +32,7 @@ const PHYSICAL: Partial<Record<LocationId, StoreDef>> = {
       ['steel_sheet', 40], ['barbed_wire', 50], ['chain_fence', 60], ['fence_posts', 50],
       ['padlock', 40], ['sandbags', 100], ['spikes', 50], ['toolbox', 15], ['axe', 20],
       ['shovel', 30], ['crowbar', 25], ['chainsaw', 8], ['flood_light', 30], ['wire_spool', 30],
-      ['power_tools', 6], ['welding_kit', 4],
+      ['power_tools', 6], ['welding_kit', 4], ['spare_parts', 40],
       // Ready-made structures the shop keeps on hand
       ['fence_wood', 60], ['fence_chain', 60], ['fence_barbed', 40], ['wall_cinder', 30],
       ['sandbag_wall', 60], ['gate_wood', 20], ['gate_steel', 8], ['container_20', 12],
@@ -74,7 +74,10 @@ const PHYSICAL: Partial<Record<LocationId, StoreDef>> = {
   },
   vehicle_dealer: {
     id: 'vehicle_dealer', markup: 1.0,
-    stock: [['pickup_truck', 3], ['cargo_van', 2], ['suv', 2], ['trailer', 3]],
+    stock: [
+      ['bicycle', 6], ['scooter', 4], ['sedan', 3], ['pickup_truck', 3], ['cargo_van', 2], ['suv', 2], ['box_truck', 1],
+      ['trailer', 3], ['tow_hitch', 6], ['roof_rack', 6], ['bull_bar', 4], ['extra_tank', 4], ['spare_parts', 30],
+    ],
   },
 };
 

@@ -82,12 +82,14 @@ await page.waitForTimeout(300);
 // ---- Go build with it
 await page.getByRole('button', { name: 'Go build with it' }).click();
 await page.waitForSelector('.drawer', { state: 'visible', timeout: 20000 });
+await page.evaluate(() => window.__game.teleportTo('base'));
+await page.waitForTimeout(500);
 await page.locator('.drawer .line', { hasText: 'Small pond' }).locator('.mini-btn', { hasText: 'Place' }).first().click();
 await page.waitForSelector('.placing-bar', { state: 'visible', timeout: 120000 });
 await page.evaluate(() => window.__game.settleCamera());
 await page.waitForTimeout(600);
 s = await S();
-check('Placing from storage travels to the base', s.at === 'base');
+check('Placing from storage at the base starts placing', s.at === 'base');
 const chipImgs = await page.locator('.drawer .thumb, .drawer img, .drawer canvas').count();
 check('the storage list shows pictures of stored structures', chipImgs >= 3, '(' + chipImgs + ')');
 await page.screenshot({ path: out + 'l3-build-bar.png' });

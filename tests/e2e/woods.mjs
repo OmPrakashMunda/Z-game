@@ -20,14 +20,10 @@ await page.waitForTimeout(700);
 await page.evaluate(() => window.__game.survivalOff(true));
 await page.waitForTimeout(1200);
 
-// Put the player at the realty, open it, and look at the four plots
-await page.evaluate(() => { window.__game.state.at = 'real_estate'; window.__game.snapCamera(47, -14); });
-await page.mouse.move(640, 400);
-for (let i = 0; i < 2; i++) await page.mouse.wheel(0, 300);
-await page.waitForTimeout(1200);
-const p = await page.evaluate(() => window.__game.project(47, -14, 3));
-await page.mouse.click(p.x, p.y);
-await page.getByRole('button', { name: /Enter office/ }).click();
+// Walk to the realty door and go in
+await page.evaluate(() => window.__game.teleportTo('real_estate'));
+await page.waitForTimeout(800);
+await page.keyboard.press('Space');
 await page.waitForSelector('.modal.realty');
 await page.waitForTimeout(500);
 const plotCount = await page.locator('.plot-card').count();
@@ -44,7 +40,7 @@ let s = await S();
 check('bought woods plot for $95,000', s.plot === 'woods' && s.money === 405000, `(${JSON.stringify(s)})`);
 await page.getByRole('button', { name: 'Leave' }).click();
 
-// Travel to the woods base: it is far away, so it should take a while
+// The woods base is a long walk from the realty
 await page.evaluate(() => window.__game.snapCamera(150, -34));
 await page.waitForTimeout(900);
 const wp = await page.evaluate(() => window.__game.project(160, -38, 0));
@@ -54,27 +50,25 @@ await page.mouse.click(wp.x, wp.y);
 await page.waitForTimeout(500);
 const title = await page.locator('.place-panel h2').textContent();
 check('clicking the woods plot opens its panel', title === 'Deep Woods Clearing', `(${title})`);
-const btn = await page.getByRole('button', { name: /^Go to base \(/ }).textContent();
-const mins = Number((btn.match(/\((\d+) min\)/) || [])[1]);
-check('woods base is a long trip from the realty', mins >= 25, `(${btn})`);
+const here = await page.evaluate(() => window.__game.player());
+const far = Math.hypot(here.x - 160, here.z + 38);
+check('woods base is a long walk from the realty', far > 100, `(${far.toFixed(0)} m)`);
+await page.getByRole('button', { name: /^Set waypoint to base/ }).click();
+await page.waitForTimeout(300);
+check('a waypoint marks the way', (await page.evaluate(() => window.__game.player().waypoint)) !== null);
 await page.screenshot({ path: out + 'r2-woods-panel.png' });
-const t0 = (await S()).ws;
-await page.getByRole('button', { name: /^Go to base \(/ }).click();
-await page.waitForFunction(() => window.__game.state.at === 'base', null, { timeout: 120000 });
+await page.evaluate(() => window.__game.teleportTo('base'));
+await page.waitForTimeout(500);
 s = await S();
-check('travel to the woods base took game time', Math.abs((s.ws - t0) / 60 - mins) < 8, `(${((s.ws - t0) / 60).toFixed(1)} min)`);
-await page.waitForTimeout(1500);
-await page.screenshot({ path: out + 'r3-at-base.png' });
+check('standing on the land counts as being at the base', s.at === 'base');
+await page.waitForTimeout(1500);await page.screenshot({ path: out + 'r3-at-base.png' });
 
 // Icons on the shop
-await page.evaluate(() => { window.__game.state.at = 'supermarket'; window.__game.snapCamera(-40, -17); });
-await page.waitForTimeout(900);
-const sp = await page.evaluate(() => window.__game.project(-40, -17, 3));
-await page.mouse.click(sp.x, sp.y);
-await page.getByRole('button', { name: /Enter shop/ }).click();
+await page.evaluate(() => window.__game.teleportTo('supermarket'));
+await page.waitForTimeout(800);
+await page.keyboard.press('Space');
 await page.waitForSelector('.modal.shop');
-await page.waitForTimeout(400);
-const svgCount = await page.locator('.item-row svg').count();
+await page.waitForTimeout(400);const svgCount = await page.locator('.item-row svg').count();
 check('shop rows use SVG icons', svgCount >= 16, `(${svgCount})`);
 await page.screenshot({ path: out + 'r4-shop-icons.png' });
 await page.getByRole('button', { name: 'Close' }).click();

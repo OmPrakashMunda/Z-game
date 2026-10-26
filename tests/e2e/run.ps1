@@ -53,13 +53,13 @@ try {
     $p = ($output | Where-Object { $_ -match '^PASS' }).Count
     $f = ($output | Where-Object { $_ -match '^FAIL' }).Count
     # A script that crashed before finishing counts as a failure even if no check failed
-    $crashed = ($output | Where-Object { $_ -match 'passed, \d+ failed|no console errors|console errors' }).Count -eq 0 -and $p + $f -eq 0
+    $crashed = ($output | Where-Object { $_ -match 'passed, \d+ failed|no console errors|console errors' }).Count -eq 0
     if ($crashed) { $f++ }
     $pass += $p
     $fail += $f
     $rows += [pscustomobject]@{ Test = $s.BaseName; Passed = $p; Failed = $f }
     $output | Where-Object { $_ -match '^FAIL' } | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
-    if ($crashed) { $output | Select-Object -First 8 | ForEach-Object { Write-Host "  $_" -ForegroundColor Red } }
+    if ($crashed) { $output | Where-Object { $_ -notmatch '^PASS' } | Select-Object -First 12 | ForEach-Object { Write-Host "  $_" -ForegroundColor Red } }
   }
   $rows | Format-Table -AutoSize
   Write-Host ("{0} checks passed, {1} failed" -f $pass, $fail)

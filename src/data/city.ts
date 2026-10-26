@@ -21,17 +21,29 @@ export type LocationId =
 
 export type PlotId = 'farm' | 'warehouse' | 'suburb' | 'woods';
 
+/** What kind of house it is. Decides its size and (later) what can be found inside. */
+export type HouseType = 'bungalow' | 'family' | 'villa' | 'farmhouse' | 'cabin';
+
+/** The kind of country a spot lies in. */
+export type Area = 'town' | 'suburb' | 'farmland' | 'woodland';
+
+export type Facing = 'S' | 'N' | 'E' | 'W';
+
 export interface BuildingDef {
   id: string;
   name: string;
   kind: 'shop' | 'house' | 'gas';
   x: number;
   z: number;
+  /** Size in the model's own frame: w across the front, d from front to back. */
   w: number;
   d: number;
   h: number;
-  /** Which side the door is on. Models are authored facing +z (south), 'N' rotates them 180 degrees. */
-  facing: 'S' | 'N';
+  /** Which side the door is on. Models are authored facing +z (south); N, E and W turn them. */
+  facing: Facing;
+  /** Houses only. */
+  houseType?: HouseType;
+  area?: Area;
   color: number;
   roofColor: number;
   accent: number;
@@ -67,8 +79,22 @@ export type PropKind =
 /** Prop kinds that are drawn in bulk as instanced meshes (forest). */
 export const FOREST_KINDS: readonly PropKind[] = ['tree', 'oak', 'bush', 'rock'];
 
-/** The area the forest is planted in, in meters. The edge of the map fades into mist here. */
-export const FOREST_BOUNDS = { minX: -175, maxX: 265, minZ: -155, maxZ: 155 } as const;
+/** Half the width of the town square, in meters. The town is hand-made; everything outside it is generated in chunks. */
+export const TOWN_HALF = 88;
+
+/** The whole world is a square this far from the middle of town, in each direction. */
+export const WORLD_HALF = 640;
+
+/** The ground footprint of a building on the map (the model's width and depth swap when it faces east or west). */
+export function footprint(b: Pick<BuildingDef, 'x' | 'z' | 'w' | 'd' | 'facing'>): Rect {
+  const sideways = b.facing === 'E' || b.facing === 'W';
+  return { x: b.x, z: b.z, w: sideways ? b.d : b.w, d: sideways ? b.w : b.d };
+}
+
+/** Whether (x, z) is within `margin` of the rectangle. */
+export function inRect(r: Rect, x: number, z: number, margin: number): boolean {
+  return Math.abs(x - r.x) <= r.w / 2 + margin && Math.abs(z - r.z) <= r.d / 2 + margin;
+}
 
 export interface PropDef {
   kind: PropKind;
@@ -108,7 +134,7 @@ export interface City {
   colliders: Rect[];
 }
 
-const HALF = 88;
+const HALF = TOWN_HALF;
 
 const SHOPS: Array<{
   id: LocationId;
@@ -203,10 +229,6 @@ const PLOTS: PlotDef[] = [
     bounds: { x: 160, z: -38, w: 26, d: 24 }, price: 95_000, water: 'stream', defense: 4, ground: 0x6b5a3a,
   },
 ];
-
-function inRect(r: Rect, x: number, z: number, margin: number): boolean {
-  return Math.abs(x - r.x) <= r.w / 2 + margin && Math.abs(z - r.z) <= r.d / 2 + margin;
-}
 
 function buildCity(): City {
   const rand = mulberry32(1337);
@@ -356,42 +378,9 @@ function buildCity(): City {
     ),
   };
 
-  // ---- Forest: dense around the town and thick in the deep woods to the east
-  const woodsPlot = PLOTS.find((p) => p.id === 'woods')!.bounds;
-  const smooth = (a: number, b: number, v: number) => {
-    const t = Math.min(1, Math.max(0, (v - a) / (b - a)));
-    return t * t * (3 - 2 * t);
-  };
-  const FOREST = FOREST_BOUNDS;
-  const forestSpot = (x: number, z: number, density: number) => {
-    const outside = Math.max(Math.abs(x), Math.abs(z)) - HALF; // 0 at the town edge
-    if (outside <= 0) return; // the town has its own trees
-    if (distanceToPath(dirtRoad.path, x, z) < dirtRoad.width / 2 + 2.8) return; // keep the road clear
-    if (inRect(woodsPlot, x, z, 3.5)) return; // the clearing
-    if (rand() > density * smooth(0, 14, outside)) return;
-    const roll = rand();
-    const rot = rand() * Math.PI * 2;
-    if (roll < 0.62) props.push({ kind: 'tree', x, z, rot, variant: Math.floor(rand() * 3) });
-    else if (roll < 0.86) props.push({ kind: 'oak', x, z, rot, variant: Math.floor(rand() * 3) });
-    else if (roll < 0.96) props.push({ kind: 'bush', x, z, rot, variant: Math.floor(rand() * 2) });
-    else props.push({ kind: 'rock', x, z, rot, variant: Math.floor(rand() * 3) });
-  };
-  // Base woodland everywhere outside the town
-  for (let x = FOREST.minX; x <= FOREST.maxX; x += 4.4) {
-    for (let z = FOREST.minZ; z <= FOREST.maxZ; z += 4.4) {
-      forestSpot(x + (rand() - 0.5) * 3.4, z + (rand() - 0.5) * 3.4, 0.92);
-    }
-  }
-  // Extra-thick woods around the dirt road and the clearing
-  for (let x = 95; x <= 235; x += 3.2) {
-    for (let z = -100; z <= 30; z += 3.2) {
-      forestSpot(x + (rand() - 0.5) * 2.6, z + (rand() - 0.5) * 2.6, 0.85);
-    }
-  }
-
   return {
     halfSize: HALF,
-    bounds: { minX: -95, maxX: 195, minZ: -95, maxZ: 95 },
+    bounds: { minX: -WORLD_HALF, maxX: WORLD_HALF, minZ: -WORLD_HALF, maxZ: WORLD_HALF },
     dirtRoads: [dirtRoad],
     roads, pavements, buildings, locations, plots: PLOTS, props, colliders,
   };
@@ -434,13 +423,4 @@ export function locationById(id: LocationId): LocationDef {
   const loc = city.locations.find((l) => l.id === id);
   if (!loc) throw new Error(`Unknown location ${id}`);
   return loc;
-}
-
-/**
- * How wooded the spot at (x, z) feels, from about 0.3 in the middle of town to 1 deep in the forest.
- * Used to mix the ambient sounds and decide where fireflies appear.
- */
-export function forestAt(x: number, z: number): number {
-  const outside = Math.max(Math.abs(x), Math.abs(z)) - HALF;
-  return 0.3 + 0.7 * Math.min(1, Math.max(0, outside / 25));
 }

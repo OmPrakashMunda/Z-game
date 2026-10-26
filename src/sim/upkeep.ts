@@ -103,7 +103,7 @@ function materialsWorth(type: string, dollars: number): Record<string, number> {
 
 /** What is missing to do a job, as a sentence, or null if everything is at hand. */
 function shortage(state: GameState, items: Record<string, number>, tools: string[]): string | null {
-  if (state.at !== 'base') return 'Travel to your base first.';
+  if (state.at !== 'base') return 'Walk to your base first.';
   if (runtimeOf(state).cheats.freeWork) return null;
   for (const tool of tools) {
     if ((state.storage[tool] ?? 0) < 1) return `You need a ${itemById(tool).name.toLowerCase()} in storage.`;

@@ -16,6 +16,12 @@ const S = () => page.evaluate(() => JSON.parse(JSON.stringify({
   plot: window.__game.state.plotId, storage: window.__game.state.storage, phase: window.__game.state.phase,
   orders: window.__game.state.orders.map((o) => ({ id: o.id, status: o.status, total: o.total })),
 })));
+const P = () => page.evaluate(() => JSON.parse(JSON.stringify(window.__game.player())));
+const goAndEnter = async (place) => {
+  await page.evaluate((p) => window.__game.teleportTo(p), place);
+  await page.waitForTimeout(500);
+  await page.keyboard.press('Space');
+};
 const check = (label, ok, extra = '') => console.log(`${ok ? 'PASS' : 'FAIL'}  ${label} ${extra}`);
 const clickAt = async (x, z, h = 3) => {
   await page.waitForTimeout(700); // let the camera settle
@@ -40,22 +46,32 @@ let s = await S();
 check('starts at motel with $500,000', s.at === 'motel' && s.money === 500000);
 
 // --- Click Hillside Realty on the map
+await page.evaluate(() => { window.__game.snapCamera(47, -14); window.__game.settleCamera(); });
 await clickAt(47, -14, 3);
 await page.waitForTimeout(400);
 const panelTitle = await page.locator('.place-panel h2').textContent();
 check('clicking the realty opens its panel', panelTitle === 'Hillside Realty', `(${panelTitle})`);
 await shot('m2-place-panel.png');
 
-const ws0 = (await S()).ws;
-await page.getByRole('button', { name: /Travel & enter office/ }).click();
+check('the panel says how far away it is', /\d+ m away/.test(await page.locator('.place-panel .dim').first().textContent()));
+check('there is no instant travel button any more', (await page.getByRole('button', { name: /Travel/ }).count()) === 0);
+await page.getByRole('button', { name: /Set waypoint/ }).click();
+await page.waitForTimeout(400);
+check('the waypoint shows in the top bar', await page.locator('.hud .waypoint').isVisible());
+const p0 = await P();
+await page.keyboard.down('KeyD');
+await page.waitForTimeout(2500);
+await page.keyboard.up('KeyD');
+const p1 = await P();
+check('WASD walks the player', Math.hypot(p1.x - p0.x, p1.z - p0.z) > 2, `(${Math.hypot(p1.x - p0.x, p1.z - p0.z).toFixed(1)} m)`);
+await page.evaluate(() => window.__game.teleportTo('real_estate'));
 await page.waitForTimeout(500);
-check('travel banner shows', await page.locator('.travel').count() === 1);
-await shot('m3-travelling.png');
-await page.waitForSelector('.modal.realty', { timeout: 120000 });
+const pr = await P();
+check('standing at the door offers to enter', pr.at === 'real_estate' && /Hillside Realty/.test(pr.prompt ?? ''), JSON.stringify(pr.prompt));
+await page.keyboard.press('Space');
+await page.waitForSelector('.modal.realty', { timeout: 20000 });
 s = await S();
-const elapsedMin = (s.ws - ws0) / 60;
 check('arrived at realty', s.at === 'real_estate');
-check('travel took game time (about 20 to 40 min, plus the real-time clock)', elapsedMin > 15 && elapsedMin < 80, `(${elapsedMin.toFixed(1)} min)`);
 await shot('m4-realty.png');
 
 // --- Buy the warehouse plot (two-step confirm)
@@ -69,8 +85,7 @@ await shot('m5-bought.png');
 await page.getByRole('button', { name: 'Leave' }).click();
 
 // --- Shop at the hardware store
-await clickAt(-17, -15, 3);
-await page.getByRole('button', { name: /Travel & enter shop/ }).click();
+await goAndEnter('hardware');
 await page.waitForSelector('.modal.shop', { timeout: 120000 });
 await page.waitForTimeout(400);
 check('at hardware store', (await S()).at === 'hardware');
@@ -116,8 +131,7 @@ await page.keyboard.press('KeyI');
 
 // --- Panic prices late in the game
 await page.evaluate(() => window.__game.skipToDay(28, 12));
-await clickAt(-40, -17, 3);
-await page.getByRole('button', { name: /Travel & enter shop/ }).click();
+await goAndEnter('supermarket');
 await page.waitForSelector('.modal.shop', { timeout: 120000 });
 await page.waitForTimeout(500);
 const foodRow = page.locator('.item-row', { hasText: 'Canned food' });
@@ -130,8 +144,7 @@ await page.getByRole('button', { name: 'Close' }).click();
 await page.evaluate(() => { window.__game.state.money = 300000; });
 await page.evaluate(() => window.__game.skipToDay(29, 20));
 // place an order that can't arrive before day 30 (vehicle dealer: 24 h)
-await clickAt(-16, 15, 3);
-await page.getByRole('button', { name: /Travel & enter shop/ }).click();
+await goAndEnter('vehicle_dealer');
 await page.waitForSelector('.modal.shop', { timeout: 120000 });
 await page.locator('.item-row', { hasText: 'Utility trailer' }).locator('.qbtn', { hasText: '+' }).first().click();
 const before = (await S()).money;

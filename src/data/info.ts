@@ -1,5 +1,6 @@
 import { CATEGORIES, itemById } from './items';
 import { isStructure, STRUCTURES, type StructureDef } from './structures';
+import { attachmentForItem, PARTS_HP, vehicleForItem } from './vehicles';
 import {
   EAT_ORDER, FUEL_PER_ITEM, MEALS_PER_BASKET, MEALS_PER_ITEM, SURVIVAL, UTILITIES, WATER_PER_ITEM,
 } from './survival';
@@ -124,11 +125,19 @@ const SUPPLIES: Record<string, Supply> = {
   binoculars: { what: 'A pair of binoculars.', how: ['See threats from far away.'], soon: 'Not used yet.' },
   gun_safe: { what: 'A steel gun safe.', how: ['Keeps weapons safe from thieves.'], soon: 'Not used yet.' },
   // Vehicles
-  pickup_truck: { what: 'A used pickup truck.', how: ['Carries a good load on supply runs.'], soon: 'Not used yet. Vehicles arrive with supply runs.' },
-  cargo_van: { what: 'A cargo van.', how: ['A large closed load space.'], soon: 'Not used yet. Vehicles arrive with supply runs.' },
-  suv: { what: 'A family SUV.', how: ['Fast and comfortable, with room for people.'], soon: 'Not used yet. Vehicles arrive with supply runs.' },
-  trailer: { what: 'A utility trailer.', how: ['Doubles what a vehicle can haul.'], soon: 'Not used yet. Vehicles arrive with supply runs.' },
-};
+  pickup_truck: { what: 'A used pickup truck with an open bed.', how: ['Drive it: it is quick on the road and copes with rough ground.', 'Carries a good load, and tows a trailer once it has a tow hitch.'] },
+  cargo_van: { what: 'A cargo van with a large closed load space.', how: ['Drive it. Diesel, roomy and steady rather than quick.', 'Can tow a trailer with a tow hitch.'] },
+  suv: { what: 'A family SUV.', how: ['Drive it. Fast, sturdy and happy off the road, with room for five.', 'Can tow a trailer with a tow hitch.'] },
+  bicycle: { what: 'A bicycle.', how: ['Ride it. Needs no fuel and makes no noise, but it is slow and carries very little.'] },
+  scooter: { what: 'A petrol scooter.', how: ['Ride it. Quick for its size and sips fuel, but the tank is small and it can be heard.'] },
+  sedan: { what: 'A family sedan.', how: ['Drive it. Fast on the road, poor on rough ground, and it cannot tow.'] },
+  box_truck: { what: 'A diesel box truck.', how: ['Drive it. The biggest load and the strongest tow, but slow, thirsty and very loud.'] },
+  trailer: { what: 'A utility trailer.', how: ['Fit it to a vehicle that has a tow hitch to carry 600 kg more.', 'Slows you down a little and makes turns wider.'] },
+  tow_hitch: { what: 'A tow hitch.', how: ['Fit it to a pickup, van, SUV or box truck so it can pull a trailer.'] },
+  roof_rack: { what: 'A roof rack.', how: ['Fit it to a car or truck for 80 kg more load.'] },
+  bull_bar: { what: 'A steel bull bar.', how: ['Fit it to the front of a vehicle. Crashes do half the damage.'] },
+  extra_tank: { what: 'An extra fuel tank.', how: ['Fit it to a car or truck for 30 liters more range.'] },
+  spare_parts: { what: 'A box of spare parts.', how: [`Repairs a vehicle. One box restores ${PARTS_HP} hit points.`, 'Use them from the vehicle card: walk up to the vehicle and click it.'] },};
 
 function supplyInfo(id: string): ProductInfo {
   const item = itemById(id);
@@ -165,6 +174,36 @@ function supplyInfo(id: string): ProductInfo {
   if (id === 'fresh_food') {
     works = true;
     stats.push({ label: 'Meals', value: num(MEALS_PER_BASKET) }, { label: 'Sold in shops', value: 'No, grow it' });
+  }
+
+  const veh = vehicleForItem(id);
+  if (veh) {
+    works = true;
+    const noise = veh.noise === 0 ? 'Silent' : veh.noise < 0.55 ? 'Quiet' : veh.noise < 0.75 ? 'Loud' : 'Very loud';
+    stats.push(
+      { label: 'Top speed', value: `${num(veh.topSpeed * 3.6)} km/h` },
+      { label: 'Range', value: veh.fuel === 'none' ? 'No fuel needed' : `${num(veh.tank / veh.burn)} km` },
+      { label: 'Fuel', value: veh.fuel === 'none' ? 'None' : `${veh.fuel === 'petrol' ? 'Gasoline' : 'Diesel'}, ${num(veh.tank)} L tank` },
+      { label: 'Durability', value: num(veh.durability) },
+      { label: 'Cargo', value: `${num(veh.cargo)} kg` },
+      { label: 'Seats', value: String(veh.seats) },
+      { label: 'Noise', value: noise },
+      { label: 'Off-road', value: `${num(veh.offroad * 100)}% of road speed` },
+      { label: 'Towing', value: veh.tow > 0 ? `up to ${num(veh.tow)} kg` : 'Cannot tow' },
+    );
+  }
+  const att = attachmentForItem(id);
+  if (att) {
+    works = true;
+    stats.push({ label: 'Fits', value: att.fits.length >= 5 ? 'Cars and trucks' : att.fits.join(', ') });
+    if (att.cargo) stats.push({ label: 'Extra load', value: `${att.cargo} kg` });
+    if (att.tank) stats.push({ label: 'Extra tank', value: `${att.tank} L` });
+    if (att.crash) stats.push({ label: 'Crash damage', value: `${Math.round(att.crash * 100)}%` });
+    if (att.requires) stats.push({ label: 'Needs', value: 'a tow hitch' });
+  }
+  if (id === 'spare_parts') {
+    works = true;
+    stats.push({ label: 'Restores', value: `${PARTS_HP} hit points` });
   }
 
   const needs: string[] = [];

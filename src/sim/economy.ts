@@ -1,9 +1,11 @@
 import { balance, DAY } from '../data/balance';
 import { CATEGORIES, itemById } from '../data/items';
 import { ONLINE_STORE_ID, STORES, storeById, storeInfo, type StoreId } from '../data/stores';
+import { VEHICLES } from '../data/vehicles';
 import { addMessage } from './messages';
 import type { GameState, Order } from './state';
 import { runtimeOf } from './utilities';
+import { deliverVehicles, type OwnedVehicle } from './vehicles';
 
 export type Cart = Record<string, number>;
 
@@ -78,7 +80,7 @@ export function quote(state: GameState, storeId: string, cart: Cart): Quote {
   return { subtotal, total: subtotal };
 }
 
-export type OrderResult = { ok: true; order: Order } | { ok: false; reason: string };
+export type OrderResult = { ok: true; order: Order; vehicles: OwnedVehicle[] } | { ok: false; reason: string };
 
 /** Check an order without changing anything. Returns an explanation if it cannot be placed. */
 export function orderProblem(state: GameState, storeId: string, cart: Cart): string | null {
@@ -126,10 +128,16 @@ export function placeOrder(state: GameState, storeId: StoreId, cart: Cart): Orde
   state.orders.push(order);
   // Delivery is instant: everything goes straight into storage.
   for (const [itemId, qty] of Object.entries(items)) state.storage[itemId] = (state.storage[itemId] ?? 0) + qty;
-  const count = Object.values(items).reduce((a, b) => a + b, 0);
-  addMessage(state, `Order #${order.id} from ${storeInfo(storeId).name}: ${count} item${count === 1 ? '' : 's'} added to your storage.`, 'order');
+  // Vehicles are not kept in storage: they are parked, at the dealership if you bought them there, otherwise beside your land
+  const parked = deliverVehicles(state, storeId === 'vehicle_dealer' ? 'dealer' : 'base');
+  const count = Object.values(items).reduce((a, b) => a + b, 0) - parked.length;
+  const where = storeId === 'vehicle_dealer' ? 'outside the dealership' : 'beside your land';
+  const parts = [];
+  if (count > 0) parts.push(`${count} item${count === 1 ? '' : 's'} added to your storage`);
+  if (parked.length > 0) parts.push(`${parked.map((v) => VEHICLES[v.type].name).join(', ')} parked ${where}`);
+  addMessage(state, `Order #${order.id} from ${storeInfo(storeId).name}: ${parts.join('; ')}.`, 'order');
   trimFinishedOrders(state);
-  return { ok: true, order };
+  return { ok: true, order, vehicles: parked };
 }
 
 /** Sandbox top-up requested by the player. Adds money and says so in the news log. */

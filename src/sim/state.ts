@@ -2,11 +2,23 @@ import { balance } from '../data/balance';
 import type { LocationId, PlotId } from '../data/city';
 import { STORES, type StoreId } from '../data/stores';
 import { worldSecondsAt } from './clock';
+import { startPosition } from './places';
+import type { OwnedVehicle } from './vehicles';
 
 export type Phase = 'prep' | 'outbreak' | 'dead';
 
-/** Where the player currently is. 'base' exists once a plot has been bought. */
-export type PlaceId = LocationId | 'base';
+/**
+ * Where the player is, worked out from where they stand: at a shop's door, at their base (on or just beside their land),
+ * or 'outside'. 'base' exists once a plot has been bought.
+ */
+export type PlaceId = LocationId | 'base' | 'outside';
+
+/** Where the player stands on the map, in meters, and the way they face (0 faces +z, the way the shop doors face). */
+export interface Position {
+  x: number;
+  z: number;
+  heading: number;
+}
 
 export interface PlayerState {
   health: number;
@@ -96,10 +108,17 @@ export interface GameState {
   rngSeed: number;
   phase: Phase;
   money: number;
+  /** Worked out from pos every frame. Saved only so older code that reads it keeps working. */
   at: PlaceId;
+  /** Where the player stands. */
+  pos: Position;
   plotId: PlotId | null;
   expansion: Expansion;
   player: PlayerState;
+  /** The vehicles the player owns, wherever they are parked. */
+  vehicles: OwnedVehicle[];
+  /** The vehicle being driven, if any. */
+  driving: number | null;
   /** Supplies and unplaced structures kept in storage. */
   storage: Record<string, number>;
   /** Structures placed on the base plot. */
@@ -115,7 +134,7 @@ export interface GameState {
 }
 
 /** Bump when the shape of GameState changes. Older saves are filled in by save/store.ts. */
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 7;
 
 export function initialSurvival(): SurvivalState {
   return {
@@ -146,9 +165,12 @@ export function createNewGame(seed = Date.now() % 2_147_483_647): GameState {
     phase: 'prep',
     money: balance.startingMoney,
     at: 'motel',
+    pos: startPosition(),
     plotId: null,
     expansion: { n: 0, e: 0, s: 0, w: 0 },
     player: { health: 100, hunger: 100, thirst: 100, fatigue: 100 },
+    vehicles: [],
+    driving: null,
     storage: {},
     pieces: [],
     survival: initialSurvival(),

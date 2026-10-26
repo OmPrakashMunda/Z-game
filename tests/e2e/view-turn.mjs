@@ -76,6 +76,19 @@ check('dragging with the right button turns the view', Math.abs(mod360(dragged -
 await G(() => window.__game.turnView(45 - window.__game.viewDegrees()));
 
 // Panning follows the screen at every angle: W moves the camera up the screen
+// Walking keys follow the view: W goes away from the camera, D goes to the right of the screen
+const walkDir = async (key, ms = 2500) => {
+  const q0 = await G(() => window.__game.player());
+  await page.keyboard.down(key);
+  await page.waitForTimeout(ms);
+  await page.keyboard.up(key);
+  await page.waitForTimeout(300);
+  const q1 = await G(() => window.__game.player());
+  const dx = q1.x - q0.x;
+  const dz = q1.z - q0.z;
+  const len = Math.hypot(dx, dz);
+  return { len, dx: dx / (len || 1), dz: dz / (len || 1) };
+};
 for (const a of [45, 135, 225, 315]) {
   await G((a) => {
     const g = window.__game;
@@ -84,20 +97,11 @@ for (const a of [45, 135, 225, 315]) {
     g.settleCamera();
   }, a);
   await page.waitForTimeout(400);
-  const p0 = await G(() => window.__game.project(-30, 30, 0));
-  await page.keyboard.down('KeyW');
-  await page.waitForTimeout(2500);
-  await page.keyboard.up('KeyW');
-  await page.waitForTimeout(300);
-  const p1 = await G(() => window.__game.project(-30, 30, 0));
-  check(`W moves the map up the screen at ${a} degrees`, p1.y > p0.y + 8 && Math.abs(p1.x - p0.x) < Math.max(6, 0.15 * (p1.y - p0.y)), `(${Math.round(p0.x)},${Math.round(p0.y)} -> ${Math.round(p1.x)},${Math.round(p1.y)})`);
-  await page.keyboard.down('KeyD');
-  await page.waitForTimeout(2500);
-  await page.keyboard.up('KeyD');
-  await page.waitForTimeout(300);
-  const p2 = await G(() => window.__game.project(-30, 30, 0));
-  check(`D moves the map right at ${a} degrees`, p2.x < p1.x - 8, `(${Math.round(p1.x)} -> ${Math.round(p2.x)})`);
-}
+  const ax = await G(() => window.__game.viewAxes());
+  const w = await walkDir('KeyW');
+  check(`W walks up the screen at ${a} degrees`, w.len > 1 && w.dx * ax.up.x + w.dz * ax.up.z > 0.93, `(${w.len.toFixed(1)} m, dot ${(w.dx * ax.up.x + w.dz * ax.up.z).toFixed(2)})`);
+  const d = await walkDir('KeyD');
+  check(`D walks right on the screen at ${a} degrees`, d.len > 1 && d.dx * ax.right.x + d.dz * ax.right.z > 0.93, `(${d.len.toFixed(1)} m, dot ${(d.dx * ax.right.x + d.dz * ax.right.z).toFixed(2)})`);}
 
 // Land-buying names follow the view
 await G(() => { const g = window.__game; g.turnView(45 - g.viewDegrees()); g.snapCamera(-55, 64); });

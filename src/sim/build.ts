@@ -193,7 +193,7 @@ export function placementProblem(
   if (state.phase === 'dead') return 'You are dead.';
   const grid = gridOf(state);
   if (!grid) return 'You do not own a plot yet.';
-  if (state.at !== 'base') return 'Travel to your base to build.';
+  if (state.at !== 'base') return 'Walk to your base to build.';
   if (!STRUCTURES[type]) return 'That cannot be placed.';
   if ((state.storage[type] ?? 0) < 1) return 'You do not have one in storage.';
   const def = STRUCTURES[type];
@@ -220,7 +220,7 @@ export function placePiece(state: GameState, type: string, cx: number, cz: numbe
 
 /** Take a structure down and put it back in storage. */
 export function removePiece(state: GameState, pieceId: number): { ok: true; salvaged?: boolean } | { ok: false; reason: string } {
-  if (state.at !== 'base') return { ok: false, reason: 'Travel to your base to take things down.' };
+  if (state.at !== 'base') return { ok: false, reason: 'Walk to your base to take things down.' };
   const i = state.pieces.findIndex((p) => p.id === pieceId);
   if (i < 0) return { ok: false, reason: 'That is already gone.' };
   const [piece] = state.pieces.splice(i, 1);
@@ -258,7 +258,7 @@ export function movePiece(state: GameState, pieceId: number, cx: number, cz: num
 export function rotatePiece(state: GameState, pieceId: number): { ok: true } | { ok: false; reason: string } {
   const piece = state.pieces.find((p) => p.id === pieceId);
   if (!piece) return { ok: false, reason: 'That is gone.' };
-  if (state.at !== 'base') return { ok: false, reason: 'Travel to your base first.' };
+  if (state.at !== 'base') return { ok: false, reason: 'Walk to your base first.' };
   const def = STRUCTURES[piece.type];
   const edge = isEdgeStructure(def);
   const old = footprint(def, piece.rot);

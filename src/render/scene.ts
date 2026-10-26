@@ -1,7 +1,13 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { applyEdgeFade, applyTrunkTint, setEdgeColor, setEdgeRect } from './edgefade';
-import { forestAt, FOREST_BOUNDS, FOREST_KINDS, type City, type LocationId, type PlotId, type PropDef, type Rect } from '../data/city';
+import { applyEdgeFade, setEdgeColor } from './edgefade';
+import { FOREST_KINDS, WORLD_HALF, type City, type LocationId, type PlotId, type Rect } from '../data/city';
+import { forestAt } from '../world/gen';
+import { clearing, setClearing } from '../world/clearing';
+import { Streamer } from './streamer';
+import { VehicleLayer } from './vehicles';
+import type { OwnedVehicle } from '../sim/vehicles';
+import { VEHICLES } from '../data/vehicles';
 import type { IssueKind } from '../data/survival';
 import type { Link } from '../sim/utilities';
 import { badgeTexture } from './badges';
@@ -10,7 +16,7 @@ import { CELL, gridRectOf, isEdgeStructure, isLineStructure, STRUCTURES, type St
 import type { Grid } from '../sim/build';
 import { edgePostFlags, linksAt, occupiedCells, pieceCenter } from '../sim/build';
 import type { Piece } from '../sim/state';
-import { glassMat, lampBulbMat, makeBuilding, makeDirtRoad, makeGasCanopy, makePin, makePlotMarker, makeProp } from './models';
+import { animateCharacter, glassMat, lampBulbMat, makeBuilding, makeDirtRoad, makeGasCanopy, makePin, makePlayer, makePlotMarker, makeProp, type CharacterRig } from './models';
 import { makeStructure } from './structures';
 import { Atmosphere } from './atmosphere';
 import { Traffic } from './traffic';
@@ -18,7 +24,8 @@ import { Traffic } from './traffic';
 export type PickResult =
   | { type: 'location'; id: LocationId }
   | { type: 'plot'; id: PlotId }
-  | { type: 'piece'; id: number };
+  | { type: 'piece'; id: number }
+  | { type: 'vehicle'; id: number };
 
 export interface MapPoint {
   x: number;
@@ -83,23 +90,8 @@ const MIN_VIEW = 18;
 const MAX_VIEW = 130;
 const DRAG_THRESHOLD_PX = 5;
 
-/** Join shapes into one. Parts marked as trunk get a flag the tree material uses to keep them brown. */
-function joinParts(parts: Array<[THREE.BufferGeometry, boolean]>): THREE.BufferGeometry {
-  const flat = parts.map(([g, trunk]) => {
-    const n = g.index ? g.toNonIndexed() : g;
-    n.setAttribute('aTrunk', new THREE.BufferAttribute(new Float32Array(n.getAttribute('position').count).fill(trunk ? 1 : 0), 1));
-    return n;
-  });
-  return mergeGeometries(flat)!;
-}
-
 /** Shadow map size. The area it covers follows the zoom, so close-ups stay sharp. */
 const SHADOW_MAP = 2048;
-
-/** How far past your land trees are cleared, in meters. The view can turn all the way round, so every side gets the same. */
-const VIEW_CLEAR = 10;
-/** Past that, the woods thin out over this fraction of the clearing distance. */
-const VIEW_CLEAR_FEATHER = 0.6;
 
 const DAY_SKY = new THREE.Color(0x9fc9ee);
 const DUSK_SKY = new THREE.Color(0xe49a62);
@@ -159,7 +151,7 @@ function makeGrassTexture(): THREE.CanvasTexture {
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(70, 70);
+  tex.repeat.set(130, 130);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
   return tex;
@@ -217,8 +209,21 @@ export class GameRenderer {
   private readonly plotGroups = new Map<PlotId, THREE.Group>();
   private readonly hoverHighlight = new RectHighlight(0xffd54a, 0.28);
   private readonly selectHighlight = new RectHighlight(0x56c2ff, 0.3);
-  private readonly youPin = makePin(0xff5a36);
+  private readonly waypointPin = makePin(0xffc933);
   private readonly basePin = makePin(0x35c46b);
+  /** The walking character, and the arrow that keeps it findable behind trees and roofs. */
+  private readonly playerRig: CharacterRig = makePlayer();
+  private readonly playerArrow = new THREE.Mesh(
+    new THREE.ConeGeometry(0.34, 0.7, 4).rotateX(Math.PI),
+    new THREE.MeshBasicMaterial({ color: 0xff7a3a, depthTest: false, transparent: true }),
+  );
+  private playerPos: MapPoint = { x: 0, z: 8 };
+  /** Whether there is a player to follow (on foot or in a vehicle). */
+  private hasPlayer = false;
+  private vehicleLayer: VehicleLayer | null = null;
+  private readonly vehicleRects = new Map<number, Rect>();
+  /** The camera follows the player while this is true. Dragging the map lets go until the player moves again. */
+  private following = true;
 
   private city: City | null = null;
   private handlers: RendererHandlers | null = null;
@@ -235,7 +240,7 @@ export class GameRenderer {
   private zoomAnchor: THREE.Vector3 | null = null;
   private zoomAnchorScreen = { x: 0, y: 0 };
   private time = 0;
-  private youPos: MapPoint | null = null;
+  private waypointPos: MapPoint | null = null;
   private basePos: MapPoint | null = null;
   private interactive = true;
   private buildMode = false;
@@ -251,12 +256,8 @@ export class GameRenderer {
   readonly atmosphere: Atmosphere;
   private ownedId: PlotId | null = null;
   private ownedRect: Rect | null = null;
-  /** Every tree, bush and rock instance, so they can be removed when you buy the land they stand on. */
-  private readonly instances: Array<{
-    mesh: THREE.InstancedMesh; index: number; x: number; z: number;
-    /** Where the whole tree, bush or rock stands, so all of its parts are cleared together. */
-    ox: number; oz: number; gone: boolean;
-  }> = [];
+  /** Draws the chunks of the world near the player. Created once the city is built. */
+  streamer: Streamer | null = null;
   private readonly looseProps: Array<{ group: THREE.Object3D; x: number; z: number }> = [];
   /** Warning signs floating above structures that have a problem, by piece id. */
   private readonly warnSprites = new Map<number, { sprite: THREE.Sprite; kind: IssueKind }>();
@@ -299,10 +300,13 @@ export class GameRenderer {
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.05;
     this.scene.add(this.sun, this.sun.target, this.hemi);
-    this.scene.add(this.hoverHighlight.group, this.selectHighlight.group, this.footprintTile.group, this.youPin, this.basePin);
+    this.scene.add(this.hoverHighlight.group, this.selectHighlight.group, this.footprintTile.group, this.waypointPin, this.basePin, this.playerRig.group, this.playerArrow);
+    this.playerArrow.renderOrder = 20;
     this.atmosphere = new Atmosphere(this.scene);
-    this.youPin.visible = false;
+    this.waypointPin.visible = false;
     this.basePin.visible = false;
+    this.playerRig.group.visible = false;
+    this.playerArrow.visible = false;
 
     window.addEventListener('resize', () => this.resize());
     this.attachPointerEvents();
@@ -323,9 +327,8 @@ export class GameRenderer {
 
   buildCity(city: City): void {
     this.city = city;
-    setEdgeRect(FOREST_BOUNDS.minX, FOREST_BOUNDS.maxX, FOREST_BOUNDS.minZ, FOREST_BOUNDS.maxZ);
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(900, 900),
+      new THREE.PlaneGeometry(WORLD_HALF * 2 + 400, WORLD_HALF * 2 + 400),
       applyEdgeFade(new THREE.MeshStandardMaterial({ map: makeGrassTexture(), roughness: 1 })),
     );
     ground.rotation.x = -Math.PI / 2;
@@ -386,7 +389,9 @@ export class GameRenderer {
     }
     for (const road of city.dirtRoads) this.scene.add(makeDirtRoad(road));
     this.traffic = new Traffic(this.scene, city);
-    this.buildForest(city.props.filter((p) => FOREST_KINDS.includes(p.kind)), city.halfSize);
+    this.streamer = new Streamer(this.scene);
+    this.vehicleLayer = new VehicleLayer(this.scene);
+    this.streamer.loadAround(0, 8);
 
     // Soft pools of light on the ground under street lamps (fade in at night)
     const lamps = city.props.filter((p) => p.kind === 'lamp');
@@ -398,146 +403,6 @@ export class GameRenderer {
     });
     pools.renderOrder = 2;
     this.scene.add(pools);
-  }
-
-  /**
-   * Draw every tree, bush and rock as a handful of instanced meshes. Thousands of trees cost a few draw calls
-   * this way, instead of thousands.
-   */
-  private buildForest(props: PropDef[], townHalf: number): void {
-    // Split the forest into tiles. Each tile is its own set of instanced meshes, so the graphics card can skip the tiles
-    // that are off screen (or outside the shadow camera). Shapes and the material are shared by all tiles.
-    const TILE = 80;
-    const tiles = new Map<string, PropDef[]>();
-    for (const p of props) {
-      const key = `${Math.floor(p.x / TILE)},${Math.floor(p.z / TILE)}`;
-      const list = tiles.get(key);
-      if (list) list.push(p);
-      else tiles.set(key, [p]);
-    }
-    const material = applyEdgeFade(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.92, flatShading: true }));
-    const treeMaterial = applyTrunkTint(applyEdgeFade(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.92, flatShading: true })));
-    const shapes = new Map<string, THREE.BufferGeometry>();
-    const shape = (key: string, build: () => THREE.BufferGeometry): THREE.BufferGeometry => {
-      let g = shapes.get(key);
-      if (!g) {
-        g = build();
-        shapes.set(key, g);
-      }
-      return g;
-    };
-    for (const tile of tiles.values()) this.buildForestTile(tile, townHalf, material, treeMaterial, shape);
-  }
-
-  private buildForestTile(
-    props: PropDef[], townHalf: number, material: THREE.Material, treeMaterial: THREE.Material,
-    shape: (key: string, build: () => THREE.BufferGeometry) => THREE.BufferGeometry,
-  ): void {
-    const dummy = new THREE.Object3D();
-    const color = new THREE.Color();
-    const hash = (x: number, z: number) => {
-      const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453;
-      return s - Math.floor(s);
-    };
-    // Trees outside the town are a little darker, so the deep woods feel heavier.
-    const shadeFor = (p: PropDef) => {
-      const outside = Math.max(Math.abs(p.x), Math.abs(p.z)) > townHalf;
-      return (0.8 + hash(p.x, p.z) * 0.35) * (outside ? 0.86 : 1);
-    };
-    const make = (geo: THREE.BufferGeometry, count: number, kind: 'plain' | 'tree' = 'plain') => {
-      const m = new THREE.InstancedMesh(geo, kind === 'tree' ? treeMaterial : material, count);
-      m.castShadow = true;
-      m.receiveShadow = true;
-      this.scene.add(m);
-      return m;
-    };
-    const put = (
-      mesh: THREE.InstancedMesh, i: number, x: number, y: number, z: number,
-      rot: number, sx: number, sy: number, sz: number, hex: number, shade: number,
-      origin: { x: number; z: number } = { x, z },
-    ) => {
-      dummy.position.set(x, y, z);
-      dummy.rotation.set(0, rot, 0);
-      dummy.scale.set(sx, sy, sz);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
-      mesh.setColorAt(i, color.setHex(hex).multiplyScalar(shade));
-      this.instances.push({ mesh, index: i, x, z, ox: origin.x, oz: origin.z, gone: false });
-    };
-    const done = (mesh: THREE.InstancedMesh) => {
-      mesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-    };
-    /** Rotate an offset around the Y axis. */
-    const rotated = (ox: number, oz: number, rot: number) => ({
-      x: ox * Math.cos(rot) + oz * Math.sin(rot),
-      z: -ox * Math.sin(rot) + oz * Math.cos(rot),
-    });
-
-    const pines = props.filter((p) => p.kind === 'tree');
-    const oaks = props.filter((p) => p.kind === 'oak');
-    const bushes = props.filter((p) => p.kind === 'bush');
-    const rocks = props.filter((p) => p.kind === 'rock');
-    const scaleOf = (p: PropDef) => 0.85 + hash(p.z, p.x) * 0.8;
-
-    // A whole tree (trunk and foliage) is one shape and one instance. The trunk is marked in the shape so it keeps its
-    // brown while the foliage takes the instance colour.
-    const trunkGeo = () => new THREE.CylinderGeometry(0.22, 0.32, 1.8, 6, 1, true).translate(0, 0.9, 0);
-    const pineGeo = () => joinParts([[trunkGeo(), true],
-      [new THREE.ConeGeometry(1.7, 2.6, 7, 1, true).translate(0, 2.7, 0), false],
-      [new THREE.ConeGeometry(1.3, 2.2, 7, 1, true).translate(0, 4.0, 0), false],
-      [new THREE.ConeGeometry(0.85, 1.8, 7, 1, true).translate(0, 5.1, 0), false]]);
-    const oakGeo = () => joinParts([[trunkGeo(), true],
-      [new THREE.IcosahedronGeometry(1.9, 0).scale(1, 0.85, 1).translate(0, 3.6, 0), false],
-      [new THREE.IcosahedronGeometry(1.4, 0).translate(0.9, 4.5, 0.5), false]]);
-
-    if (pines.length) {
-      const greens = [0x2f6b3a, 0x3b8247, 0x4a8f3f];
-      const mesh = make(shape('pine', pineGeo), pines.length, 'tree');
-      pines.forEach((p, i) => {
-        const s = scaleOf(p);
-        put(mesh, i, p.x, 0, p.z, p.rot, s, s, s, greens[p.variant % 3], shadeFor(p));
-      });
-      done(mesh);
-    }
-
-    if (oaks.length) {
-      const greens = [0x4f8f3a, 0x5fa042, 0x6a9a3a];
-      const mesh = make(shape('oak', oakGeo), oaks.length, 'tree');
-      oaks.forEach((p, i) => {
-        const s = scaleOf(p);
-        // A few oaks have turned for autumn
-        const hex = p.variant === 2 && hash(p.x, p.z) > 0.85 ? 0xb5762e : greens[p.variant % 3];
-        put(mesh, i, p.x, 0, p.z, p.rot, s, s, s, hex, shadeFor(p));
-      });
-      done(mesh);
-    }
-
-    // Bushes: three blobs each
-    if (bushes.length) {
-      const blobs = make(shape('bush', () => new THREE.IcosahedronGeometry(1, 0)), bushes.length * 3);
-      const offsets: Array<[number, number, number]> = [[0, 0, 0.7], [0.55, 0.5, 0.2], [-0.45, 0.55, 0.25]];
-      bushes.forEach((p, b) => {
-        offsets.forEach(([ox, r, oz], k) => {
-          const o = rotated(ox, oz, p.rot);
-          const s = r === 0 ? 0.7 : r;
-          put(blobs, b * 3 + k, p.x + o.x, s * 0.8, p.z + o.z, p.rot, s, s, s, p.variant ? 0x54914a : 0x3f7a3d, shadeFor(p), p);
-        });
-      });
-      blobs.castShadow = false;
-      done(blobs);
-    }
-
-    // Rocks
-    if (rocks.length) {
-      const stones = make(shape('rock', () => new THREE.DodecahedronGeometry(1, 0)), rocks.length);
-      rocks.forEach((p, i) => {
-        const s = 0.5 + hash(p.x, p.z) * 0.9;
-        put(stones, i, p.x, s * 0.25, p.z, p.rot, s, s * 0.6, s * 0.85, 0x7d8084, 0.8 + hash(p.z, p.x) * 0.3);
-      });
-      stones.castShadow = false;
-      done(stones);
-    }
   }
 
   private registerPick(obj: THREE.Object3D, pick: PickResult): void {
@@ -565,7 +430,12 @@ export class GameRenderer {
     this.ownedId = id;
     this.ownedRect = id && land ? land : null;
     for (const p of this.city.plots) this.addPlot(p.id, p.id === id, p.id === id ? this.ownedRect ?? undefined : undefined);
+    const before = clearing();
     if (this.ownedRect) this.clearLand(this.ownedRect);
+    else if (before) {
+      setClearing(null);
+      this.streamer?.refreshNear(before);
+    }
   }
 
   /** The point on the map at the center of the screen. */
@@ -583,11 +453,46 @@ export class GameRenderer {
     };
   }
 
-  setMarkers(you: MapPoint | null, base: MapPoint | null): void {
-    this.youPos = you;
+  setMarkers(waypoint: MapPoint | null, base: MapPoint | null): void {
+    this.waypointPos = waypoint;
     this.basePos = base;
-    this.youPin.visible = !!you;
+    this.waypointPin.visible = !!waypoint;
     this.basePin.visible = !!base;
+  }
+
+  /** Put the walking character on the map. heading is the direction it faces (0 faces +z) and speed how fast it walks, in m/s. */
+  setPlayer(pos: MapPoint | null, heading = 0, speed = 0, hidden = false): void {
+    const rig = this.playerRig;
+    this.hasPlayer = !!pos;
+    rig.group.visible = !!pos && !hidden;
+    this.playerArrow.visible = !!pos && !hidden;
+    if (!pos) return;
+    this.playerPos = { x: pos.x, z: pos.z };
+    rig.group.position.set(pos.x, 0, pos.z);
+    rig.group.rotation.y = heading;
+    animateCharacter(rig, this.time, speed);
+    if (speed > 0.1) this.following = true;
+  }
+
+  /** Show the player's vehicles where they are. */
+  syncVehicles(vehicles: readonly OwnedVehicle[]): void {
+    this.vehicleLayer?.sync(vehicles, this.playerPos);
+    this.vehicleRects.clear();
+    for (const v of vehicles) {
+      const d = VEHICLES[v.type];
+      const sideways = Math.abs(Math.sin(v.heading)) > 0.7;
+      this.vehicleRects.set(v.id, { x: v.x, z: v.z, w: sideways ? d.length : d.width, d: sideways ? d.width : d.length });
+    }
+  }
+
+  /** The camera stays on the player. */
+  followPlayer(on: boolean): void {
+    this.following = on;
+  }
+
+  /** Where the player stands, as last reported. */
+  get playerAt(): MapPoint {
+    return { x: this.playerPos.x, z: this.playerPos.z };
   }
 
   // ------------------------------------------------------------ Highlights and picking
@@ -600,6 +505,7 @@ export class GameRenderer {
       return city.plots.find((p) => p.id === pick.id)?.bounds ?? null;
     }
     if (pick.type === 'piece') return this.pieceViews.get(pick.id)?.rect ?? null;
+    if (pick.type === 'vehicle') return this.vehicleRects.get(pick.id) ?? null;
     const idx = city.locations.findIndex((l) => l.id === pick.id);
     if (idx < 0) return null;
     const b = city.locations[idx].building;
@@ -639,37 +545,12 @@ export class GameRenderer {
    * woods just outside it so the base can be seen from any side. The edge of the clearing is ragged, not a straight cut.
    */
   clearLand(land: Rect): void {
-    const zero = new THREE.Matrix4().makeScale(0, 0, 0);
-    const touched = new Set<THREE.InstancedMesh>();
     const margin = 1.2;
-    for (const inst of this.instances) {
-      if (inst.gone) continue;
-      const inside = Math.abs(inst.x - land.x) <= land.w / 2 + margin && Math.abs(inst.z - land.z) <= land.d / 2 + margin;
-      if (!inside && !this.clearedForView(land, inst.ox, inst.oz)) continue;
-      inst.mesh.setMatrixAt(inst.index, zero);
-      inst.gone = true;
-      touched.add(inst.mesh);
-    }
-    for (const mesh of touched) mesh.instanceMatrix.needsUpdate = true;
+    setClearing(land);
+    this.streamer?.refreshNear(land);
     for (const p of this.looseProps) {
       if (Math.abs(p.x - land.x) <= land.w / 2 + margin && Math.abs(p.z - land.z) <= land.d / 2 + margin) p.group.visible = false;
     }
-  }
-
-  /** Whether a tree standing at (x, z) just outside the land is cleared to keep the base in view. */
-  private clearedForView(land: Rect, x: number, z: number): boolean {
-    const dx = x - land.x;
-    const dz = z - land.z;
-    const outX = Math.abs(dx) - land.w / 2;
-    const outZ = Math.abs(dz) - land.d / 2;
-    const reachX = VIEW_CLEAR;
-    const reachZ = VIEW_CLEAR;
-    // 0 on the border, 1 at the edge of the full clearing; the corners are rounded
-    const r = Math.hypot(Math.max(0, outX) / reachX, Math.max(0, outZ) / reachZ);
-    if (r < 1) return true;
-    if (r >= 1 + VIEW_CLEAR_FEATHER) return false;
-    const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453;
-    return s - Math.floor(s) < 1 - (r - 1) / VIEW_CLEAR_FEATHER;
   }
 
   /** Show a rectangle on the ground (for example the land you could buy). Pass null to hide it. */
@@ -913,7 +794,7 @@ export class GameRenderer {
       triangles: info.render.triangles,
       geometries: info.memory.geometries,
       textures: info.memory.textures,
-      instances: this.instances.length,
+      instances: this.streamer?.count ?? 0,
       pixelRatio: this.renderer.getPixelRatio(),
     };
   }
@@ -1144,7 +1025,7 @@ export class GameRenderer {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.camera);
-    const hits = this.raycaster.intersectObjects(this.pickables, true);
+    const hits = this.raycaster.intersectObjects([...this.pickables, ...(this.vehicleLayer?.pickables ?? [])], true);
     for (const hit of hits) {
       let o: THREE.Object3D | null = hit.object;
       while (o) {
@@ -1158,9 +1039,21 @@ export class GameRenderer {
   // ------------------------------------------------------------ Camera
 
   focusOn(p: MapPoint): void {
+    this.following = false;
     this.zoomAnchor = null;
     this.desired.set(p.x, 0, p.z);
     this.clampTarget(this.desired);
+  }
+
+  /** Jump to a place: the world around it is drawn at once and the camera is put there. */
+  jumpTo(p: MapPoint): void {
+    this.playerPos = { x: p.x, z: p.z };
+    this.leash = true;
+    this.streamer?.loadAround(p.x, p.z);
+    this.following = true;
+    this.desired.set(p.x, 0, p.z);
+    this.clampTarget(this.desired);
+    this.target.copy(this.desired);
   }
 
   /** Snap the camera without easing. */
@@ -1169,10 +1062,19 @@ export class GameRenderer {
     this.target.copy(this.desired);
   }
 
+  /** The camera may wander this far from the player (meters), so it never looks at ground that is not drawn. */
+  private static readonly LEASH = 140;
+  /** Tests turn this off to look at distant places without walking there. */
+  leash = true;
+
   private clampTarget(v: THREE.Vector3): void {
     const b = this.city?.bounds ?? { minX: -94, maxX: 94, minZ: -94, maxZ: 94 };
     v.x = THREE.MathUtils.clamp(v.x, b.minX, b.maxX);
     v.z = THREE.MathUtils.clamp(v.z, b.minZ, b.maxZ);
+    if (this.leash && this.hasPlayer) {
+      v.x = THREE.MathUtils.clamp(v.x, this.playerPos.x - GameRenderer.LEASH, this.playerPos.x + GameRenderer.LEASH);
+      v.z = THREE.MathUtils.clamp(v.z, this.playerPos.z - GameRenderer.LEASH, this.playerPos.z + GameRenderer.LEASH);
+    }
   }
 
   /** Ground direction that points to the right of the screen. */
@@ -1183,6 +1085,13 @@ export class GameRenderer {
   /** Ground direction that points up the screen (away from the camera). */
   private screenUp(): THREE.Vector3 {
     return new THREE.Vector3(-Math.cos(this.azimuth), 0, -Math.sin(this.azimuth));
+  }
+
+  /** Ground directions of 'up the screen' and 'right on the screen', as unit vectors. Walking keys follow the view. */
+  get groundAxes(): { up: MapPoint; right: MapPoint } {
+    const up = this.screenUp();
+    const right = this.screenRight();
+    return { up: { x: up.x, z: up.z }, right: { x: right.x, z: right.z } };
   }
 
   /** The angle the camera stands at around its target, in radians. Used by the compass. */
@@ -1265,6 +1174,7 @@ export class GameRenderer {
       .addScaledVector(this.screenRight(), -dxPx * worldPerPx)
       .addScaledVector(this.screenUp(), (dyPx * worldPerPx) / Math.sin(this.elevation));
     this.zoomAnchor = null;
+    this.following = false;
     this.desired.add(move);
     this.clampTarget(this.desired);
     this.target.copy(this.desired);
@@ -1443,6 +1353,11 @@ export class GameRenderer {
 
   render(realDt: number, worldSeconds: number): void {
     this.time += realDt;
+    if (this.following && this.hasPlayer) {
+      this.desired.set(this.playerPos.x, 0, this.playerPos.z);
+      this.clampTarget(this.desired);
+    }
+    this.streamer?.update(this.playerPos.x, this.playerPos.z, realDt);
     this.target.lerp(this.desired, 1 - Math.exp(-9 * realDt));
     this.easeZoom(realDt);
     this.easeTurn(realDt);
@@ -1478,9 +1393,11 @@ export class GameRenderer {
 
   private updatePins(): void {
     const bob = Math.sin(this.time * 2.4) * 0.45;
-    if (this.youPos) {
-      this.youPin.position.set(this.youPos.x, 8.6 + bob, this.youPos.z);
-      this.youPin.rotation.y = this.time * 0.8;
+    this.playerArrow.position.set(this.playerPos.x, 2.9 + bob * 0.25, this.playerPos.z);
+    this.playerArrow.rotation.y = this.time * 1.4;
+    if (this.waypointPos) {
+      this.waypointPin.position.set(this.waypointPos.x, 6 + bob, this.waypointPos.z);
+      this.waypointPin.rotation.y = this.time * 0.8;
     }
     if (this.basePos) {
       this.basePin.position.set(this.basePos.x, 4.2 + bob, this.basePos.z);

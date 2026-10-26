@@ -88,13 +88,20 @@ const placeBtns = await page.locator('.drawer .mini-btn').count();
 check('storage lists structures with Place buttons', placeBtns === 4, `(${placeBtns})`);
 await page.screenshot({ path: out + 'b3-storage.png' });
 
-// ---- Place: travels to the base, then starts placing
+// ---- Place: needs you at the base, then starts placing
+await page.evaluate(() => window.__game.teleport(0, 20));
+await page.waitForTimeout(400);
+await page.locator('.drawer .line', { hasText: 'Wooden picket fence' }).locator('.mini-btn').click();
+await page.waitForTimeout(300);
+check('Place away from the base only sets a waypoint', (await page.locator('.placing-bar').count()) === 0 || !(await page.locator('.placing-bar').isVisible()));
+await page.evaluate(() => window.__game.teleportTo('base'));
+await page.waitForTimeout(500);
 await page.locator('.drawer .line', { hasText: 'Wooden picket fence' }).locator('.mini-btn').click();
 await page.waitForSelector('.placing-bar', { state: 'visible', timeout: 90000 });
 await page.evaluate(() => window.__game.settleCamera());
 await page.waitForTimeout(600);
 s = await S();
-check('Place travels to the base and starts placing', s.at === 'base');
+check('Place at the base starts placing', s.at === 'base');
 await page.screenshot({ path: out + 'b4-build-mode.png' });
 
 // ---- Drag a line of fences along row 2, from column 2 to column 8

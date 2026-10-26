@@ -155,6 +155,8 @@ const YELLOW = 2;
 const ALL_RED = 1.5;
 const CYCLE = 2 * (GREEN + YELLOW + ALL_RED);
 const LANE_HALF_LENGTH = 90;
+/** The two main roads carry on out of town, so their traffic does too. */
+const MAIN_HALF_LENGTH = 160;
 
 function signalsAt(t: number): { h: Signal; v: Signal } {
   const tt = ((t % CYCLE) + CYCLE) % CYCLE;
@@ -204,7 +206,7 @@ export class Traffic {
           .filter((it) => it.z === h.z)
           .map((it) => ({ p: -(it.vHalf + 1.3) + it.x * dir, light: it, axis: 'h' as const }));
         this.lanes.push({
-          axis: 'x', fixed: h.z + dir * off, dir, length: LANE_HALF_LENGTH * 2,
+          axis: 'x', fixed: h.z + dir * off, dir, length: (h.d >= 10 ? MAIN_HALF_LENGTH : LANE_HALF_LENGTH) * 2,
           target: h.d >= 10 ? 4 : 3, cars: [], stops, spawnCooldown: Math.random() * 3,
         });
       }
@@ -220,7 +222,7 @@ export class Traffic {
             return { p: s * dir, light: it, axis: 'v' as const };
           });
         this.lanes.push({
-          axis: 'z', fixed: v.x - dir * off, dir, length: LANE_HALF_LENGTH * 2,
+          axis: 'z', fixed: v.x - dir * off, dir, length: (v.w >= 10 ? MAIN_HALF_LENGTH : LANE_HALF_LENGTH) * 2,
           target: 5, cars: [], stops, spawnCooldown: Math.random() * 3,
         });
       }
@@ -233,7 +235,8 @@ export class Traffic {
     for (const lane of this.lanes) {
       const n = Math.max(1, lane.target - 1);
       for (let i = 0; i < n; i++) {
-        const p = -LANE_HALF_LENGTH + 10 + ((i + Math.random() * 0.6) / n) * (LANE_HALF_LENGTH * 2 - 25);
+        const half = lane.length / 2;
+        const p = -half + 10 + ((i + Math.random() * 0.6) / n) * (half * 2 - 25);
         this.spawn(lane, p, true);
       }
     }

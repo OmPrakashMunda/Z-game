@@ -975,7 +975,7 @@ export type BuildPlanResult = { ok: true; placed: number; spent: number; failed:
 /** Buy everything in the plan from the online store and lay it out on the land. The crew builds it over game time. */
 export function buildPlan(state: GameState, plan: BasePlan): BuildPlanResult {
   if (state.phase !== 'prep') return { ok: false, reason: 'The shops have closed.' };
-  if (state.at !== 'base') return { ok: false, reason: 'Travel to your base to build.' };
+  if (state.at !== 'base') return { ok: false, reason: 'Walk to your base to build.' };
   const before = state.money;
   if (plan.land.sides.length > 0) {
     if (state.money < plan.cost) return { ok: false, reason: `You need $${Math.ceil(plan.cost - state.money).toLocaleString('en-US')} more.` };

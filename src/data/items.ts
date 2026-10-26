@@ -143,6 +143,15 @@ const RAW: Array<[string, string, Category, number, string, string]> = [
   ['cargo_van', 'Cargo van', 'vehicles', 22000, 'each', 'Bus'],
   ['suv', 'SUV', 'vehicles', 16000, 'each', 'CarFront'],
   ['trailer', 'Utility trailer', 'vehicles', 4200, 'each', 'Caravan'],
+  ['bicycle', 'Bicycle', 'vehicles', 350, 'each', 'Bike'],
+  ['scooter', 'Scooter', 'vehicles', 2600, 'each', 'Bike'],
+  ['sedan', 'Sedan', 'vehicles', 11500, 'each', 'Car'],
+  ['box_truck', 'Box truck', 'vehicles', 54000, 'each', 'Truck'],
+  ['tow_hitch', 'Tow hitch', 'vehicles', 420, 'each', 'Wrench'],
+  ['roof_rack', 'Roof rack', 'vehicles', 380, 'each', 'Layers'],
+  ['bull_bar', 'Bull bar', 'vehicles', 750, 'each', 'Shield'],
+  ['extra_tank', 'Extra fuel tank', 'vehicles', 540, 'each', 'Fuel'],
+  ['spare_parts', 'Spare parts', 'vehicles', 60, 'box', 'Cog'],
 ];
 
 function buildTime(minutes: number): string {

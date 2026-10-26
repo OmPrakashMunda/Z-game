@@ -1,4 +1,5 @@
-import { createNewGame, SAVE_VERSION, type GameState } from '../sim/state';
+import { placePoint } from '../sim/places';
+import { createNewGame, SAVE_VERSION, type GameState, type PlaceId } from '../sim/state';
 
 const DB_NAME = 'zgame';
 const STORE = 'saves';
@@ -43,7 +44,7 @@ const num = (v: unknown, fallback: number): number => (typeof v === 'number' && 
  * Build a current-version state from any older save. Known fields are copied when they look right,
  * everything else comes from a fresh game, so old saves keep working as the game grows.
  */
-function migrate(envelope: SaveEnvelope): GameState {
+export function migrate(envelope: SaveEnvelope): GameState {
   const d = createNewGame();
   const s = envelope.state as Partial<GameState>;
   const p = (s.player ?? {}) as Partial<GameState['player']>;
@@ -58,6 +59,7 @@ function migrate(envelope: SaveEnvelope): GameState {
     phase: s.phase === 'outbreak' || s.phase === 'dead' ? s.phase : 'prep',
     money: num(s.money, d.money),
     at: typeof s.at === 'string' ? s.at : d.at,
+    pos: migratePosition(s, d),
     plotId: s.plotId ?? null,
     expansion: {
       n: num(s.expansion?.n, 0),
@@ -71,6 +73,8 @@ function migrate(envelope: SaveEnvelope): GameState {
       thirst: num(p.thirst, d.player.thirst),
       fatigue: num(p.fatigue, d.player.fatigue),
     },
+    vehicles: Array.isArray(s.vehicles) ? s.vehicles.map((v) => ({ ...v, speed: 0, cargo: { ...(v.cargo ?? {}) }, parts: [...(v.parts ?? [])] })) : [],
+    driving: null,
     storage: { ...(s.storage ?? {}) },
     pieces: Array.isArray(s.pieces) ? s.pieces : [],
     survival: {
@@ -91,6 +95,13 @@ function migrate(envelope: SaveEnvelope): GameState {
   };
 }
 
+/** Older saves had only a place name. Put the player at that place's door or on their plot. */
+function migratePosition(s: Partial<GameState>, d: GameState): GameState['pos'] {
+  const q = s.pos;
+  if (q && Number.isFinite(q.x) && Number.isFinite(q.z)) return { x: q.x, z: q.z, heading: num(q.heading, 0) };
+  const where = typeof s.at === 'string' ? placePoint({ ...d, plotId: s.plotId ?? null }, s.at as PlaceId) : null;
+  return where ? { x: where.x, z: where.z, heading: 0 } : d.pos;
+}
 function isValidEnvelope(e: unknown): e is SaveEnvelope {
   if (!e || typeof e !== 'object') return false;
   const env = e as Partial<SaveEnvelope>;

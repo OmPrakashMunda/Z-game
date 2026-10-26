@@ -52,6 +52,8 @@ export function activeCheats(state: GameState | null): string[] {
     if (c.godMode) out.push('GODMODE');
     if (c.freeShop) out.push('FREESHOP');
     if (c.freeze) out.push('FREEZETIME');
+    if (c.freeFuel) out.push('ENDLESSFUEL');
+    if (c.noDamage) out.push('TOUGHCARS');
   }
   if (session.weather === 'none') out.push('NORAIN');
   if (session.weather === 'always') out.push('RAINALLDAY');
@@ -77,7 +79,9 @@ export const CHEAT_LIST: CheatInfo[] = [
   { code: 'FREEREPAIRS', kind: 'switch', what: 'Repairs, upgrades and cleaning cost nothing and need no tools.' },
   { code: 'GODMODE', kind: 'switch', what: 'Your family never gets hungry or thirsty and never loses health.' },
   { code: 'FREESHOP', kind: 'switch', what: 'Everything in every shop costs nothing.' },
-  { code: 'FREEZETIME', kind: 'switch', what: 'The world clock stops (travel still works).' },
+  { code: 'FREEZETIME', kind: 'switch', what: 'The world clock stops (you can still walk and drive).' },
+  { code: 'ENDLESSFUEL', kind: 'switch', what: 'Vehicles use no fuel.' },
+  { code: 'TOUGHCARS', kind: 'switch', what: 'Crashes do no damage to your vehicles.' },
   { code: 'BUILDNOW', kind: 'once', what: 'Finishes everything that is being built.' },
   { code: 'MONEY', kind: 'once', what: 'Adds $500,000.' },
   { code: 'SETMONEY n', kind: 'once', what: 'Sets your money to n dollars.' },
@@ -162,6 +166,12 @@ export function runCheatCode(raw: string, host: CheatHost): string {
     case 'freezetime':
       c.freeze = !c.freeze;
       return flip('FREEZETIME', c.freeze, 'The clock is stopped.');
+    case 'endlessfuel':
+      c.freeFuel = !c.freeFuel;
+      return flip('ENDLESSFUEL', c.freeFuel, 'Vehicles use no fuel.');
+    case 'toughcars':
+      c.noDamage = !c.noDamage;
+      return flip('TOUGHCARS', c.noDamage, 'Crashes do no damage.');
 
     // ---- One-off
     case 'buildnow':
@@ -252,7 +262,7 @@ export function runCheatCode(raw: string, host: CheatHost): string {
       return 'The weather is back to normal.';
     case 'resetcheats':
     case 'nocheats':
-      Object.assign(c, { hourLock: null, instantBuild: false, noWear: false, freeWork: false, godMode: false, freeShop: false, freeze: false });
+      Object.assign(c, { hourLock: null, instantBuild: false, noWear: false, freeWork: false, godMode: false, freeShop: false, freeze: false, freeFuel: false, noDamage: false });
       resetCheatSession(host);
       host.changed();
       return 'Every cheat switch is off.';

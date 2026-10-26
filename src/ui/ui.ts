@@ -17,6 +17,8 @@ export interface HudData {
   canBuild: boolean;
   objective: string | null;
   location: string;
+  /** The waypoint and how far away it is, or null when none is set. */
+  waypoint: string | null;
   dayPart: DayPart;
   raining: boolean;
   muted: boolean;
@@ -84,6 +86,8 @@ export class UI {
   private readonly leftEl = el('span', 'days-left');
   private readonly locEl = el('span', 'place icon-label');
   private readonly locText = el('span');
+  private readonly wpEl = el('span', 'waypoint icon-label');
+  private readonly wpText = el('span');
   private readonly speedEl = el('span', 'speed');
   private readonly viewGroup = el('div', 'view-group');
   private readonly compassIcon = el('span', 'compass-icon');
@@ -96,7 +100,7 @@ export class UI {
   private readonly newsBtn: HTMLButtonElement;
   private readonly newsCount: HTMLElement;
   private readonly goalEl = el('div', 'goal');
-  private readonly helpEl = el('div', 'help', 'Drag or WASD: move the map   Q/E, Z/C or right-drag: turn and tilt the view   Wheel: zoom   Click a place: travel   Esc: menu');
+  private readonly helpEl = el('div', 'help', 'WASD: walk   Shift: run   Space: enter or use   Q/E, Z/C or right-drag: turn and tilt the view   Wheel: zoom   Click a place: info and waypoint   Esc: menu');
   private readonly tooltipEl = el('div', 'tooltip');
   private overlay: HTMLElement | null = null;
   private toastEl: HTMLElement | null = null;
@@ -115,6 +119,8 @@ export class UI {
     money.title = 'Your money';
     money.append(icon('Coins', 18), this.moneyEl);
     this.locEl.append(icon('MapPin', 14), this.locText);
+    this.wpEl.append(icon('Flag', 14), this.wpText);
+    this.wpEl.style.display = 'none';
     this.soundBtn.title = 'Sound (M)';
     this.soundBtn.addEventListener('click', () => handlers.onToggleSound());
     const menuBtn = el('button', 'hud-btn icon-only');
@@ -160,7 +166,7 @@ export class UI {
     }
 
     this.hud.append(
-      day, this.countdown, this.leftEl, this.tagEl, this.cheatTag, this.timeEl, this.weatherEl, money, this.locEl,
+      day, this.countdown, this.leftEl, this.tagEl, this.cheatTag, this.timeEl, this.weatherEl, money, this.locEl, this.wpEl,
       el('span', 'spacer'), this.viewGroup, this.speedGroup, this.speedEl, this.soundBtn, menuBtn,
     );
 
@@ -248,6 +254,9 @@ export class UI {
     if (this.tagEl.className !== tagClass) this.tagEl.className = tagClass;
     setText(this.leftEl, d.outbreak ? '' : `${d.daysLeft} day${d.daysLeft === 1 ? '' : 's'} left`);
     setText(this.locText, d.location);
+    if (d.waypoint) setText(this.wpText, d.waypoint);
+    const wpShown = d.waypoint ? '' : 'none';
+    if (this.wpEl.style.display !== wpShown) this.wpEl.style.display = wpShown;
     setText(this.speedEl, `${d.timeScale * d.speed}x`);
     this.speedEl.title = `One real second is ${d.timeScale * d.speed} game seconds`;
     for (const [value, b] of this.speedButtons) b.classList.toggle('active', value === d.speed);
@@ -405,16 +414,19 @@ export class UI {
     );
   }
 
-  showTravel(text: string | null): void {
-    let banner = this.root.querySelector<HTMLElement>('.travel');
+  /** The hint above the dock, for example "Space: Enter Fresh Mart". Pass null to hide it. */
+  setPrompt(text: string | null, key = 'Space'): void {
+    let banner = this.root.querySelector<HTMLElement>('.prompt');
     if (!text) {
       banner?.remove();
       return;
     }
     if (!banner) {
-      banner = el('div', 'travel');
+      banner = el('div', 'prompt');
       this.root.append(banner);
     }
-    banner.replaceChildren(icon('Car', 20), el('span', undefined, text));
-  }
-}
+    const label = `${key}|${text}`;
+    if (banner.dataset.label === label) return;
+    banner.dataset.label = label;
+    banner.replaceChildren(el('span', 'prompt-key', key), el('span', undefined, text));
+  }}

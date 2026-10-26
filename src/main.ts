@@ -36,7 +36,16 @@ import { stepSim } from './sim/step';
 import { flushSurvival, summarize } from './sim/survival';
 import { runtimeOf, topologyOf } from './sim/utilities';
 import type { IssueKind } from './data/survival';
-import { placePoint, travelMinutes, travelProblem } from './sim/travel';
+import { distanceTo, locate, placePoint } from './sim/places';
+import { moveWalker } from './world/collide';
+import { AREA_NAMES, areaAt } from './world/gen';
+import { Minimap } from './ui/minimap';
+import { Dashboard } from './ui/dashboard';
+import { ATTACHMENT_LIST, effective, VEHICLES, type VehicleId } from './data/vehicles';
+import {
+  addVehicle, atPump, condition, drivenVehicle, driveStep, enterVehicle, exitVehicle, fitPart, fitProblem, FUEL_ITEM, onHand, parkingSpot, pumpPrice,
+  refuelAtPump, refuelFromCans, removePart, repairVehicle, tankSize, topSpeedOn, surfaceAt, vehicleNear, type OwnedVehicle,
+} from './sim/vehicles';
 import { PiecePanel } from './ui/piece-panel';
 import { PlacingBar } from './ui/placing-bar';
 import { Drawer, type DrawerTab } from './ui/drawer';
@@ -60,17 +69,13 @@ let selected: PickResult | null = null;
 let seenMsgId = 0;
 let toastedMsgId = 0;
 
-interface TravelAnim {
-  to: PlaceId;
-  from: MapPoint;
-  dest: MapPoint;
-  total: number;
-  remaining: number;
-  /** Game seconds that pass per real second during the time-lapse. */
-  speed: number;
-}
-let travel: TravelAnim | null = null;
-
+/** Where the player is heading, set from the map. Cleared when they get there. */
+let waypoint: { x: number; z: number; name: string } | null = null;
+/** Walking and running speed in meters per real second. */
+const WALK_SPEED = 4.6;
+const RUN_SPEED = 8;
+/** How fast the player moved over the last frame, for the walking animation. */
+let walkSpeed = 0;
 interface BuildMode {
   /** Structure being placed, or null if none is selected. */
   type: string | null;
@@ -85,8 +90,6 @@ let hoverAnchor: { cx: number; cz: number } | null = null;
 let hoverRot = 0;
 /** While dragging: the last cell, and for fences the grid line being followed (rot, the line, and how far along it we got). */
 let painting: { last: { cx: number; cz: number }; edge?: { rot: number; line: number; last: number } } | null = null;
-let pendingBuild: string | null = null;
-let pendingArchitect = false;
 let lastCompass = Number.NaN;
 let persistTimer = 0;
 let lastPlaceSound = 0;
@@ -130,6 +133,8 @@ const expandPanel = new ExpandPanel(uiEl, () => state!, (side) => handleExpand(s
 const architect = new ArchitectPanel(uiEl, () => state!, { onFunds: () => handleFunds(), onBuild: () => handleArchitectBuild() });
 const cheats = new CheatConsole(uiEl, (code) => runCheat(code));
 const placePanel = new PlacePanel(uiEl, () => select(null));
+const minimap = new Minimap(uiEl, (p) => setWaypoint(p.x, p.z, 'Map marker'));
+const dashboard = new Dashboard(uiEl);
 const piecePanel = new PiecePanel(uiEl, () => state!, {
   onClose: () => select(null),
   onRotate: (id) => rotatePlaced(id),
@@ -160,7 +165,7 @@ const realty = new RealtyView(
 const modalOpen = () => shop.isOpen || realty.isOpen;
 const ownedStructures = (s: GameState) => Object.entries(s.storage).filter(([id, n]) => n > 0 && isStructure(id)).map(([id]) => id);
 const latestMsgId = (s: GameState) => s.messages[s.messages.length - 1]?.id ?? 0;
-const placeName = (p: PlaceId) => (p === 'base' ? 'your base' : locationById(p).name);
+const placeName = (s: GameState) => (s.at === 'base' ? 'Your base' : s.at === 'outside' ? AREA_NAMES[areaAt(s.pos.x, s.pos.z)] : locationById(s.at).name);
 
 // ---------------------------------------------------------------- Sound
 
@@ -256,7 +261,11 @@ async function showTitle(): Promise<void> {
   gfx.setLinks([]);
   vitals.hide();
   advisor.hide();
-  gfx.snapTo({ x: 0, z: 8 });
+  gfx.setPlayer(null);
+  gfx.jumpTo({ x: 0, z: 8 });
+  minimap.setVisible(false);
+  dashboard.hide();
+  waypoint = null;
   gfx.setInteractive(false);
   const result = await loadGame();
   const startNew = () => beginGame(createNewGame(), true);
@@ -283,7 +292,6 @@ function beginGame(next: GameState, isNew: boolean): void {
   resetCheatSession(cheatPictureHost);
   ui.setCheats([]);
   state = next;
-  state.at = state.at === 'base' && !state.plotId ? 'motel' : state.at;
   deathShown = false;
   advice = null;
   speed = 1;
@@ -292,12 +300,20 @@ function beginGame(next: GameState, isNew: boolean): void {
   ui.setHudVisible(true);
   gfx.setOwnedPlot(state.plotId, landOf(state));
   gfx.syncPieces(state.pieces, gridOf(state));
+  waypoint = null;
   syncMarkers();
-  gfx.snapTo(placePoint(state, state.at) ?? { x: 0, z: 8 });
+  if (state.driving !== null && !drivenVehicle(state)) state.driving = null;
+  dashboard.hide();
+  gfx.jumpTo(state.pos);
+  gfx.syncVehicles(state.vehicles);
+  gfx.zoomTo(64);
+  gfx.setPlayer(state.pos, state.pos.heading, 0);
+  walkSpeed = 0;
+  state.at = locate(state.pos, landOf(state) ?? null);
+  minimap.setVisible(true);
   gfx.setInteractive(true);
   seenMsgId = isNew ? 0 : latestMsgId(state);
   toastedMsgId = latestMsgId(state);
-  travel = null;
   selected = null;
   accumulator = 0;
   sinceSave = 0;
@@ -312,11 +328,9 @@ function beginGame(next: GameState, isNew: boolean): void {
 function closeAllViews(): void {
   if (build) stopPlacing(false);
   piecePanel.hide();
-  pendingBuild = null;
   expandPanel.hide();
   architect.hide();
   cheats.hide();
-  pendingArchitect = false;
   shop.close();
   realty.close();
   placePanel.hide();
@@ -324,12 +338,12 @@ function closeAllViews(): void {
   gfx.setSelected(null);
   gfx.setHover(null);
   ui.setTooltip(null);
-  ui.showTravel(null);
+  ui.setPrompt(null);
   selected = null;
 }
 
 function openMenu(): void {
-  if (screen !== 'play' || travel) return;
+  if (screen !== 'play') return;
   screen = 'menu';
   input.clear();
   gfx.setInteractive(false);
@@ -361,7 +375,7 @@ function closeMenu(): void {
 
 input.onPress('Escape', () => {
   if (screen === 'menu') return closeMenu();
-  if (screen !== 'play' || travel) return;
+  if (screen !== 'play') return;
   if (modalOpen()) return shop.closeSheet() || leaveBuilding();
   if (architect.isOpen) return architect.hide();
   if (build) return stopPlacing();
@@ -369,16 +383,17 @@ input.onPress('Escape', () => {
   if (placePanel.isOpen || piecePanel.isOpen) return select(null);
   openMenu();
 });
-input.onPress('Backquote', () => screen === 'play' && !travel && cheats.toggle());
+input.onPress('Backquote', () => screen === 'play' && cheats.toggle());
 input.onPress('KeyU', () => screen === 'play' && !modalOpen() && toggleUtilityView());
-input.onPress('KeyP', () => screen === 'play' && !modalOpen() && !travel && toggleArchitect());
+input.onPress('KeyP', () => screen === 'play' && !modalOpen() && toggleArchitect());
 input.onPress('KeyI', () => screen === 'play' && !modalOpen() && drawer.toggle('storage'));
 input.onPress('KeyO', () => screen === 'play' && !modalOpen() && drawer.toggle('orders'));
 input.onPress('KeyN', () => screen === 'play' && !modalOpen() && drawer.toggle('news'));
 input.onPress('KeyB', () => screen === 'play' && toggleOnlineStore());
 input.onPress('KeyM', () => toggleSound());
+input.onPress('Space', () => screen === 'play' && interact());
 input.onPress('KeyF', () => screen === 'play' && setSpeed(speed > 1 ? 1 : 4));
-input.onPress('KeyV', () => screen === 'play' && !modalOpen() && !travel && (build ? stopPlacing() : drawer.toggle('storage')));
+input.onPress('KeyV', () => screen === 'play' && !modalOpen() && (build ? stopPlacing() : drawer.toggle('storage')));
 input.onPress('KeyR', () => {
   if (screen !== 'play' || modalOpen()) return;
   if (build) rotateBuild();
@@ -400,7 +415,7 @@ gfx.setHandlers({
     ui.setTooltip(pick ? tooltipFor(pick, state) : null, x, y);
   },
   onClick(pick, ground) {
-    if (screen !== 'play' || travel || modalOpen() || build) return;
+    if (screen !== 'play' || modalOpen() || build) return;
     // A fence is thin and see-through, so a click that lands on the ground right beside a structure still counts as clicking it
     if ((!pick || pick.type === 'plot') && ground && state?.plotId) {
       const grid = gridOf(state);
@@ -424,13 +439,17 @@ function tooltipFor(pick: PickResult, s: GameState): string {
     const problem = runtimeOf(s).issues.get(piece.id)?.[0] ?? conditionIssue(piece);
     return problem ? `${name}. ${problem.text}` : name;
   }
+  if (pick.type === 'vehicle') {
+    const v = s.vehicles.find((x) => x.id === pick.id);
+    return v ? `${VEHICLES[v.type].name}${s.driving === v.id ? ' (you are driving)' : ''}` : 'Vehicle';
+  }
   if (pick.type === 'plot') {
     const plot = city.plots.find((p) => p.id === pick.id)!;
     return s.plotId === pick.id ? `${plot.name} (your base)` : `${plot.name}: for sale`;
   }
   const loc = locationById(pick.id);
   if (s.at === pick.id) return `${loc.name} (you are here)`;
-  return `${loc.name} · ${travelMinutes(s, pick.id)} min away`;
+  return `${loc.name} · ${Math.round(distanceTo(s, pick.id) ?? 0)} m away`;
 }
 
 function select(input: PickResult | null): void {
@@ -449,7 +468,10 @@ function select(input: PickResult | null): void {
     return;
   }
   piecePanel.hide();
-  const point = pick.type === 'location' ? placePoint(state, pick.id) : city.plots.find((p) => p.id === pick.id)!.bounds;
+  let point: MapPoint | null | undefined;
+  if (pick.type === 'location') point = placePoint(state, pick.id);
+  else if (pick.type === 'vehicle') point = state.vehicles.find((v) => v.id === pick.id);
+  else point = city.plots.find((p) => p.id === pick.id)!.bounds;
   if (point) gfx.focusOn({ x: point.x, z: point.z });
   refreshPlacePanel();
 }
@@ -459,19 +481,19 @@ function refreshPlacePanel(): void {
   placePanel.show(buildPlaceInfo(selected, state));
 }
 
-function travelButton(s: GameState, to: PlaceId, label: string, openAfter = true) {
-  const problem = travelProblem(s, to);
-  const mins = travelMinutes(s, to);
+/** A button that marks a place on the map and in the corner map, or clears the mark if it is already there. */
+function waypointButton(label: string, point: MapPoint, name: string) {
+  const same = !!waypoint && Math.abs(waypoint.x - point.x) < 0.5 && Math.abs(waypoint.z - point.z) < 0.5;
   return {
-    label: mins > 0 ? `${label} (${mins} min)` : label,
-    disabled: problem !== null,
-    onClick: () => goTo(to, openAfter),
+    label: same ? 'Clear waypoint' : label,
+    kind: 'secondary' as const,
+    onClick: () => (same ? clearWaypoint() : setWaypoint(point.x, point.z, name)),
   };
 }
-
 function buildPlaceInfo(pick: PickResult, s: GameState): PlaceInfo {
   // A placed structure has its own card (see the piece panel), so this one is never asked for it
   if (pick.type === 'piece') return { title: 'Structure', actions: [] };
+  if (pick.type === 'vehicle') return vehicleInfo(pick.id, s);
   if (pick.type === 'plot') {
     const plot = city.plots.find((p) => p.id === pick.id)!;
     const stats: Array<[string, string]> = [
@@ -492,7 +514,7 @@ function buildPlaceInfo(pick: PickResult, s: GameState): PlaceInfo {
         stats,
         actions: [
           { label: 'Place from storage', kind: 'good' as const, onClick: () => startPlacing() },
-          ...(s.at === 'base' ? [] : [travelButton(s, 'base', 'Go to base', false)]),
+          ...(s.at === 'base' ? [] : [waypointButton('Set waypoint to base', placePoint(s, 'base')!, 'Your base')]),
           { label: 'Buy more land', kind: 'secondary' as const, onClick: () => expandPanel.show() },
           { label: 'Open storage', kind: 'secondary' as const, onClick: () => drawer.show('storage') },
           { label: 'Buy from the online store', kind: 'secondary' as const, onClick: () => toggleOnlineStore(true) },
@@ -505,7 +527,7 @@ function buildPlaceInfo(pick: PickResult, s: GameState): PlaceInfo {
       text: plot.blurb,
       stats,
       notice: s.plotId ? undefined : 'You can buy plots at Hillside Realty.',
-      actions: s.plotId ? [] : [travelButton(s, 'real_estate', 'Go to Hillside Realty')],
+      actions: s.plotId ? [] : [waypointButton('Set waypoint to Hillside Realty', placePoint(s, 'real_estate')!, 'Hillside Realty')],
     };
   }
 
@@ -514,84 +536,340 @@ function buildPlaceInfo(pick: PickResult, s: GameState): PlaceInfo {
   const sells = isStore(loc.id);
   const closed = (sells || loc.id === 'real_estate') && s.phase !== 'prep';
   const actions = [];
+  const door = placePoint(s, loc.id)!;
   if (loc.id === 'motel') {
-    actions.push(travelButton(s, loc.id, here ? 'You are here' : 'Go to motel', false));
-    if (here) actions[0].disabled = true;
+    actions.push(here ? { label: 'You are at the motel', disabled: true, onClick: () => {} } : waypointButton('Set waypoint to motel', door, loc.name));
   } else if (closed) {
     actions.push({ label: 'Closed', disabled: true, onClick: () => {} });
+  } else if (here) {
+    actions.push({ label: loc.id === 'real_estate' ? 'Enter office' : 'Enter shop', onClick: () => openPlace(loc.id) });
   } else {
-    const verb = loc.id === 'real_estate' ? 'office' : 'shop';
-    actions.push(travelButton(s, loc.id, here ? `Enter ${verb}` : `Travel & enter ${verb}`));
-  }
-  return {
+    actions.push(waypointButton(`Set waypoint (${Math.round(distanceTo(s, loc.id) ?? 0)} m)`, door, loc.name));
+  }  return {
     title: loc.name,
-    subtitle: here ? 'You are here' : `${travelMinutes(s, loc.id)} min away`,
+    subtitle: here ? 'You are here' : `${Math.round(distanceTo(s, loc.id) ?? 0)} m away`,
     text: loc.blurb,
     notice: closed ? 'This place has closed since the outbreak began.' : undefined,
     actions,
   };
 }
 
-// ---------------------------------------------------------------- Travel
+// ---------------------------------------------------------------- Walking
 
-function goTo(to: PlaceId, openAfter: boolean): void {
-  if (!state || travel) return;
-  if (travelProblem(state, to)) return;
-  const mins = travelMinutes(state, to);
-  if (mins === 0) {
-    if (openAfter) openPlace(to);
-    return;
-  }
-  if (build) stopPlacing(false);
-  if (to !== 'base') pendingBuild = null;
-  const from = placePoint(state, state.at)!;
-  const dest = placePoint(state, to)!;
-  const [minAnim, maxAnim] = balance.travelAnimSeconds;
-  const animSeconds = Math.min(maxAnim, minAnim + mins / 40);
-  const total = mins * 60;
-  travel = { to, from, dest, total, remaining: total, speed: total / animSeconds };
-  pendingOpen = openAfter;
-  shop.close();
-  realty.close();
-  drawer.hide();
-  placePanel.hide();
-  ui.setTooltip(null);
-  gfx.setInteractive(false);
-  gfx.setSelected(null);
-  gfx.focusOn(dest);
-  ui.showTravel(`Travelling to ${placeName(to)}… ${mins} min`);
-}
-let pendingOpen = true;
-
-function arrive(): void {
-  if (!state || !travel) return;
-  const to = travel.to;
-  state.at = to;
-  travel = null;
-  ui.showTravel(null);
-  gfx.setInteractive(true);
+function setWaypoint(x: number, z: number, name: string): void {
+  if (!state) return;
+  waypoint = { x, z, name };
   syncMarkers();
-  select(null);
-  if (to === 'base' && pendingArchitect) {
-    pendingArchitect = false;
-    architect.show();
-  }
-  if (to === 'base' && pendingBuild !== null) {
-    const type = pendingBuild || null;
-    pendingBuild = null;
-    beginPlacing(type);
-  } else if (pendingOpen) {
-    openPlace(to);
-  } else {
-    select(to === 'base' ? { type: 'plot', id: state.plotId! } : { type: 'location', id: to });
-  }
-  void persist();
+  ui.toast(`Waypoint set: ${name}, ${Math.round(Math.hypot(x - state.pos.x, z - state.pos.z))} m away.`, 'info');
+  if (selected) refreshPlacePanel();
 }
 
-function openPlace(place: PlaceId): void {
+function clearWaypoint(): void {
+  waypoint = null;
+  syncMarkers();
+  if (selected) refreshPlacePanel();
+}
+
+function waypointText(): string | null {
+  if (!waypoint || !state) return null;
+  return `${waypoint.name} \u00b7 ${Math.round(Math.hypot(waypoint.x - state.pos.x, waypoint.z - state.pos.z))} m`;
+}
+
+/** Work out where the player is from where they stand, and react when that changes. */
+function updatePlace(): void {
+  if (!state) return;
+  const at = locate(state.pos, landOf(state) ?? null);
+  if (at === state.at) return;
+  state.at = at;
+  // Walking away from a shop closes it
+  if (modalOpen() && !(shop.isOpen && shop.currentStore === ONLINE_STORE_ID)) {
+    shop.close();
+    realty.close();
+  }
+  if (selected && at !== 'outside') refreshPlacePanel();
+}
+
+/** Put the player at a spot at once (cheats and tests), drawing the world around it. */
+function teleport(x: number, z: number): void {
+  if (!state) return;
+  state.pos.x = x;
+  state.pos.z = z;
+  gfx.jumpTo({ x, z });
+  gfx.setPlayer(state.pos, state.pos.heading, 0);
+  walkSpeed = 0;
+  updatePlace();
+}
+
+/** Put the player at a place: a shop's door, or the middle of their land. */
+function teleportTo(place: PlaceId): void {
   if (!state) return;
   if (place === 'base') {
-    select({ type: 'plot', id: state.plotId! });
+    const land = landOf(state);
+    if (land) teleport(land.x, land.z);
+    return;
+  }
+  const p = placePoint(state, place);
+  if (p) teleport(p.x, p.z);
+}
+
+/** Turn an angle toward another by the shorter way. */
+function turnToward(from: number, to: number, amount: number): number {
+  const full = Math.PI * 2;
+  const diff = ((((to - from) % full) + full + Math.PI) % full) - Math.PI;
+  return from + diff * Math.min(1, amount);
+}
+
+/** Walk with the movement keys. The view's up is the way forward, so the keys always feel the same however the view is turned. */
+function updateWalk(dt: number): void {
+  if (!state || dt <= 0) return;
+  const k = input.move();
+  const free = screen === 'play' && state.phase !== 'dead' && !modalOpen() && !cheats.isOpen;
+  walkSpeed = 0;
+  if (free && (k.x !== 0 || k.y !== 0)) {
+    const axes = gfx.groundAxes;
+    let dx = axes.right.x * k.x + axes.up.x * k.y;
+    let dz = axes.right.z * k.x + axes.up.z * k.y;
+    const len = Math.hypot(dx, dz) || 1;
+    dx /= len;
+    dz /= len;
+    const v = input.sprint() ? RUN_SPEED : WALK_SPEED;
+    const next = moveWalker(state.pos, dx * v * dt, dz * v * dt, 0.45);
+    walkSpeed = Math.hypot(next.x - state.pos.x, next.z - state.pos.z) / dt;
+    state.pos.x = next.x;
+    state.pos.z = next.z;
+    state.pos.heading = turnToward(state.pos.heading, Math.atan2(dx, dz), dt * 14);
+  }
+  gfx.setPlayer(state.pos, state.pos.heading, walkSpeed);
+  updatePlace();
+}
+
+function checkWaypoint(): void {
+  if (!state || !waypoint) return;
+  if (Math.hypot(waypoint.x - state.pos.x, waypoint.z - state.pos.z) < 6) {
+    ui.toast(`You have arrived: ${waypoint.name}.`, 'info');
+    clearWaypoint();
+  }
+}
+
+/** Walk or drive, whichever the player is doing. */
+function updateMovement(dt: number): void {
+  if (!state || dt <= 0) return;
+  if (state.driving !== null) {
+    updateDrive(dt);
+  } else {
+    dashboard.hide();
+    updateWalk(dt);
+  }
+  gfx.syncVehicles(state.vehicles);
+  checkWaypoint();
+}
+
+// ---------------------------------------------------------------- Vehicles
+
+const vehicleName = (v: OwnedVehicle) => VEHICLES[v.type].name;
+
+function enterNearest(): boolean {
+  if (!state || state.driving !== null) return false;
+  const v = vehicleNear(state, state.pos.x, state.pos.z);
+  return v ? startDriving(v.id) : false;
+}
+
+function startDriving(id: number): boolean {
+  if (!state) return false;
+  const result = enterVehicle(state, id);
+  if (!result.ok) {
+    ui.toast(result.reason);
+    return false;
+  }
+  if (build) stopPlacing(false);
+  select(null);
+  shop.close();
+  realty.close();
+  const v = drivenVehicle(state)!;
+  walkSpeed = 0;
+  gfx.setPlayer(state.pos, v.heading, 0, true);
+  ui.toast(`Driving the ${vehicleName(v).toLowerCase()}. W and S: gas and brake. A and D: steer. Shift: handbrake. Space: get out.`, 'info');
+  return true;
+}
+
+function stopDriving(): void {
+  if (!state) return;
+  const result = exitVehicle(state);
+  if (!result.ok) {
+    ui.toast(result.reason);
+    return;
+  }
+  dashboard.hide();
+  walkSpeed = 0;
+  gfx.setPlayer(state.pos, state.pos.heading, 0);
+  updatePlace();
+  schedulePersist();
+}
+
+/** Steer the vehicle with the movement keys: W gas, S brake and reverse, A and D steer as the driver sees it. */
+function updateDrive(dt: number): void {
+  if (!state) return;
+  const v = drivenVehicle(state);
+  if (!v) {
+    state.driving = null;
+    return;
+  }
+  const k = input.move();
+  const free = screen === 'play' && state.phase !== 'dead' && !modalOpen() && !cheats.isOpen;
+  const inp = { throttle: free ? k.y : 0, steer: free ? k.x : 0, brake: free && input.sprint() };
+  let left = Math.min(dt, 0.1);
+  let damage = 0;
+  while (left > 1e-6) {
+    const step = Math.min(left, 0.04);
+    left -= step;
+    const r = driveStep(state, v, inp, step);
+    damage += r.damage;
+    if (r.ranDry) ui.toast(`The ${vehicleName(v).toLowerCase()} has run out of fuel. Click it to fill the tank from a fuel can, or at the pumps.`);
+    if (r.brokeDown) ui.toast(`The ${vehicleName(v).toLowerCase()} has broken down. Click it to mend it with spare parts.`);
+  }
+  if (damage > 5) audio.error();
+  walkSpeed = 0;
+  gfx.setPlayer(state.pos, v.heading, 0, true);
+  updatePlace();
+  const def = VEHICLES[v.type];
+  const eff = effective(def, v.parts);
+  let warning: string | null = null;
+  if (v.hp <= 0) warning = 'Broken down';
+  else if (def.fuel !== 'none' && v.fuel <= 0) warning = 'Out of fuel';
+  else if (condition(v) < 0.3) warning = 'Badly damaged: it will not go fast';
+  else if (def.fuel !== 'none' && v.fuel / eff.tank < 0.15) warning = 'Fuel is low';
+  dashboard.update({
+    name: def.name,
+    kmh: v.speed * 3.6,
+    fuel: def.fuel === 'none' ? null : { have: v.fuel, size: eff.tank, kind: def.fuel },
+    condition: condition(v),
+    warning,
+    load: { have: 0, max: eff.cargo },
+    trailer: eff.trailer,
+  });
+}
+
+/** The card shown when a vehicle is clicked: its numbers, and what can be done to it from where the player stands. */
+function vehicleInfo(id: number, s: GameState): PlaceInfo {
+  const v = s.vehicles.find((x) => x.id === id);
+  if (!v) return { title: 'Vehicle', subtitle: 'It is gone.', actions: [] };
+  const def = VEHICLES[v.type];
+  const eff = effective(def, v.parts);
+  const driving = s.driving === v.id;
+  const dist = Math.hypot(v.x - s.pos.x, v.z - s.pos.z);
+  const near = driving || dist <= def.length * 0.25 + 6;
+  const stats: Array<[string, string]> = [
+    ['Fuel', def.fuel === 'none' ? 'None needed' : `${Math.round(v.fuel)} / ${eff.tank} L`],
+    ['Condition', `${Math.round(condition(v) * 100)}%`],
+    ['Top speed', `${Math.round(def.topSpeed * 3.6)} km/h`],
+    ['Range now', def.fuel === 'none' ? 'Unlimited' : `${Math.round(v.fuel / def.burn)} km`],
+    ['Cargo space', `${eff.cargo} kg`],
+    ['Seats', String(def.seats)],
+  ];
+  const fitted = v.parts.map((pt) => ATTACHMENT_LIST.find((a) => a.id === pt)?.name).filter(Boolean);
+  const actions: PlaceInfo['actions'] = [];
+  if (driving) actions.push({ label: 'Get out', kind: 'good', onClick: () => stopDriving() });
+  else if (near) actions.push({ label: `Drive the ${def.name.toLowerCase()}`, kind: 'good', onClick: () => startDriving(v.id) });
+  else actions.push(waypointButton(`Set waypoint (${Math.round(dist)} m)`, { x: v.x, z: v.z }, `Your ${def.name}`));
+
+  if (near && def.fuel !== 'none' && tankSize(v) - v.fuel >= 1) {
+    const word = def.fuel === 'petrol' ? 'gasoline' : 'diesel';
+    const cans = onHand(s, v, FUEL_ITEM[def.fuel]);
+    actions.push({ label: cans > 0 ? `Fill from fuel cans (${cans} ${word})` : `Fill from fuel cans (none ${s.at === 'base' ? 'in storage' : 'carried'})`, kind: 'secondary', disabled: cans < 1, onClick: () => vehicleJob('cans', v.id) });
+    if (s.phase === 'prep' && atPump(s, v)) {
+      const cost = Math.round(Math.min(tankSize(v) - v.fuel, Math.floor(s.money / pumpPrice(def.fuel))) * pumpPrice(def.fuel));
+      actions.push({ label: `Fill up at the pump (${money(cost)})`, kind: 'secondary', onClick: () => vehicleJob('pump', v.id) });
+    }
+  }
+  if (near && v.hp < def.durability) {
+    const parts = onHand(s, v, 'spare_parts');
+    actions.push({ label: `Repair (${parts} spare parts on hand)`, kind: 'secondary', disabled: parts < 1 && !runtimeOf(s).cheats.freeWork, onClick: () => vehicleJob('repair', v.id) });
+  }
+  if (near && !driving) {
+    for (const a of ATTACHMENT_LIST) {
+      if (!a.fits.includes(v.type)) continue;
+      if (v.parts.includes(a.id)) {
+        actions.push({ label: `Remove ${a.name.toLowerCase()}`, kind: 'secondary', onClick: () => vehicleJob(`remove:${a.id}`, v.id) });
+      } else if ((s.storage[a.item] ?? 0) > 0) {
+        actions.push({ label: `Fit ${a.name.toLowerCase()}`, kind: 'secondary', disabled: fitProblem(s, v, a.id) !== null, onClick: () => vehicleJob(`fit:${a.id}`, v.id) });
+      }
+    }
+  }
+  const surface = surfaceAt(v.x, v.z);
+  return {
+    title: def.name,
+    subtitle: driving ? 'You are driving' : near ? 'Parked beside you' : `Parked ${Math.round(dist)} m away`,
+    text: `${def.blurb}${fitted.length ? ` Fitted: ${fitted.join(', ')}.` : ''}`,
+    stats,
+    notice: v.hp <= 0 ? 'It has broken down. Mend it with spare parts.' : def.fuel !== 'none' && v.fuel < 1 ? 'The tank is empty.' : surface === 'grass' && driving ? undefined : undefined,
+    actions,
+  };
+}
+
+function vehicleJob(job: string, id: number): void {
+  if (!state) return;
+  const v = state.vehicles.find((x) => x.id === id);
+  if (!v) return;
+  let message: string | null = null;
+  let failure: string | null = null;
+  if (job === 'cans') {
+    const r = refuelFromCans(state, v);
+    if (r.ok) message = `Added ${Math.round(r.liters)} L of fuel.`;
+    else failure = r.reason;
+  } else if (job === 'pump') {
+    const r = refuelAtPump(state, v);
+    if (r.ok) message = `Added ${Math.round(r.liters)} L for ${money(r.cost)}.`;
+    else failure = r.reason;
+  } else if (job === 'repair') {
+    const r = repairVehicle(state, v);
+    if (r.ok) message = `Repaired ${Math.round(r.restored)} hit points${r.used ? ` with ${r.used} spare part${r.used === 1 ? '' : 's'}` : ''}.`;
+    else failure = r.reason;
+  } else if (job.startsWith('fit:') || job.startsWith('remove:')) {
+    const part = job.split(':')[1] as Parameters<typeof fitPart>[2];
+    const r = job.startsWith('fit:') ? fitPart(state, v, part) : removePart(state, v, part);
+    if (r.ok) message = job.startsWith('fit:') ? 'Fitted.' : 'Removed. It is back in your storage.';
+    else failure = r.reason;
+  }
+  if (failure) {
+    ui.toast(failure);
+    audio.error();
+    return;
+  }
+  if (message) ui.toast(message, 'info');
+  audio.buy();
+  gfx.syncVehicles(state.vehicles);
+  if (selected) refreshPlacePanel();
+  schedulePersist();
+}
+
+/** What pressing the use key would do here, for the hint above the dock. */
+function promptFor(s: GameState): string | null {
+  if (screen !== 'play' || modalOpen() || build) return null;
+  // While driving the dashboard shows the hint
+  if (s.driving !== null) return null;
+  const parked = vehicleNear(s, s.pos.x, s.pos.z);
+  if (parked) return `Drive ${VEHICLES[parked.type].name}`;
+  if (s.at === 'outside') return null;
+  if (s.at === 'base') return s.plotId ? 'Your base' : null;
+  const loc = locationById(s.at);
+  if (s.at === 'motel') return loc.name;
+  if (s.phase !== 'prep') return `${loc.name} (closed)`;
+  return `Enter ${loc.name}`;
+}
+
+/** The use key: go into the shop at the door, or open the card of the base you are standing on. */
+function interact(): void {
+  if (!state || screen !== 'play' || modalOpen() || build) return;
+  if (state.driving !== null) return stopDriving();
+  if (enterNearest()) return;
+  if (state.at === 'outside') return;
+  openPlace(state.at);
+}
+function openPlace(place: PlaceId): void {
+  if (!state) return;
+  if (place === 'outside') return;
+  if (place === 'base') {
+    if (state.plotId) select({ type: 'plot', id: state.plotId });
     return;
   }
   if (place === 'real_estate') {
@@ -614,7 +892,7 @@ function leaveBuilding(): void {
   realty.close();
   gfx.setHover(null);
   if (build) return; // the build bar is still on screen
-  if (here && here !== 'base') select({ type: 'location', id: here });
+  if (here && here !== 'base' && here !== 'outside') select({ type: 'location', id: here });
 }
 
 // ---------------------------------------------------------------- Land
@@ -649,7 +927,7 @@ function previewExpand(side: Side | null): void {
 // ---------------------------------------------------------------- Base architect
 
 function toggleArchitect(): void {
-  if (!state || screen !== 'play' || travel) return;
+  if (!state || screen !== 'play') return;
   if (!state.plotId) {
     ui.toast('Buy a base plot first.');
     return;
@@ -679,8 +957,8 @@ function buildWoodsBase(): string {
   }
   // Plenty of money, so the design uses the strongest walls instead of trimming to a budget
   for (let i = 0; i < 4 && state.money < 700_000; i++) grantFunds(state);
-  state.at = 'base';
   gfx.setOwnedPlot(state.plotId, landOf(state));
+  teleportTo('base');
   syncMarkers();
   let plan = planBase(state);
   for (let i = 0; plan && plan.shortfall > 0 && i < 6; i++) {
@@ -771,9 +1049,9 @@ function handleFunds(): void {
 function handleArchitectBuild(): void {
   if (!state || screen !== 'play') return;
   if (state.at !== 'base') {
-    architect.hide();
-    pendingArchitect = true;
-    goTo('base', false);
+    const base = placePoint(state, 'base');
+    if (base) setWaypoint(base.x, base.z, 'Your base');
+    ui.toast('Walk to your base to build the upgrade. A waypoint marks the way.');
     return;
   }
   const plan = planBase(state);
@@ -804,7 +1082,7 @@ function handleArchitectBuild(): void {
 
 // ---------------------------------------------------------------- Online store
 function toggleOnlineStore(forceOpen = false): void {
-  if (!state || screen !== 'play' || travel) return;
+  if (!state || screen !== 'play') return;
   if (shop.isOpen && shop.currentStore === ONLINE_STORE_ID && !forceOpen) {
     leaveBuilding();
     return;
@@ -823,7 +1101,11 @@ function toggleOnlineStore(forceOpen = false): void {
 // ---------------------------------------------------------------- Building on your plot
 
 function startPlacing(type?: string): void {
-  if (!state || screen !== 'play' || travel) return;
+  if (!state || screen !== 'play') return;
+  if (state.driving !== null) {
+    ui.toast('Get out of the vehicle first.');
+    return;
+  }
   if (!state.plotId) {
     ui.toast('Buy a base plot first.');
     return;
@@ -834,8 +1116,9 @@ function startPlacing(type?: string): void {
     return;
   }
   if (state.at !== 'base') {
-    pendingBuild = type;
-    goTo('base', false);
+    const base = placePoint(state, 'base');
+    if (base) setWaypoint(base.x, base.z, 'Your base');
+    ui.toast('Walk to your base first. A waypoint marks the way.');
     return;
   }
   beginPlacing(type);
@@ -1127,7 +1410,7 @@ function startMoving(id: number): void {
   const piece = state.pieces.find((p) => p.id === id);
   if (!piece) return;
   if (state.at !== 'base') {
-    ui.toast('Travel to your base first.');
+    ui.toast('Walk to your base first.');
     return;
   }
   beginPlacing(piece.type, id);
@@ -1161,7 +1444,14 @@ function schedulePersist(): void {
 function handleOrder(storeId: StoreId, cart: Cart) {
   const result = placeOrder(state!, storeId, cart);
   if (result.ok) {
-    ui.toast(`Bought for ${money(result.order.total)}. It is already in your storage.`, 'info');
+    const car = result.vehicles[0];
+    if (car) {
+      gfx.syncVehicles(state!.vehicles);
+      setWaypoint(car.x, car.z, `Your ${vehicleName(car).toLowerCase()}`);
+      ui.toast(`Bought for ${money(result.order.total)}. Your ${vehicleName(car).toLowerCase()} is parked ${storeId === 'vehicle_dealer' ? 'outside the dealership' : 'beside your land'}. A waypoint marks it.`, 'info');
+    } else {
+      ui.toast(`Bought for ${money(result.order.total)}. It is already in your storage.`, 'info');
+    }
     audio.buy();
     void persist();
   } else {
@@ -1187,11 +1477,9 @@ function handleBuyPlot(plotId: PlotId): boolean {
 
 function syncMarkers(): void {
   if (!state) return;
-  const you = travel ? null : placePoint(state, state.at);
   const base = state.plotId ? placePoint(state, 'base') : null;
-  gfx.setMarkers(you, base);
+  gfx.setMarkers(waypoint, base);
 }
-
 // ---------------------------------------------------------------- Director (news and events)
 
 function runDirector(s: GameState): void {
@@ -1219,9 +1507,9 @@ function objective(s: GameState): string | null {
 /** The speed the player chose: 1 is normal, 4 and 12 fast-forward. It is never saved, so a loaded game starts at normal. */
 let speed = 1;
 
-/** Fast-forward waits while you shop, build or travel, so no time is burned while you are busy. */
+/** Fast-forward waits while you shop or build, so no time is burned while you are busy. */
 function effectiveSpeed(): number {
-  return modalOpen() || build || travel ? 1 : speed;
+  return modalOpen() || build ? 1 : speed;
 }
 
 function setSpeed(multiplier: number, reason?: string): void {
@@ -1334,23 +1622,11 @@ function frame(now: number): void {
 
     while (accumulator >= balance.simStep) {
       accumulator -= balance.simStep;
-      if (travel) {
-        const worldDt = Math.min(travel.remaining, balance.simStep * travel.speed);
-        stepSim(state, balance.simStep, worldDt);
-        travel.remaining -= worldDt;
-        if (travel.remaining <= 1e-6) {
-          arrive();
-          break;
-        }
-      } else {
-        if (!runtimeOf(state).cheats.freeze) stepSim(state, balance.simStep, balance.simStep * config.timeScale * effectiveSpeed());
-      }
+      if (!runtimeOf(state).cheats.freeze) stepSim(state, balance.simStep, balance.simStep * config.timeScale * effectiveSpeed());
     }
-
     runDirector(state);
     slowDownIfNeeded(state);
-    const pan = input.pan();
-    gfx.keyPan(pan.x, pan.y, renderDt);
+    updateMovement(renderDt);
     gfx.keyTurn(input.rotation(), renderDt);
     gfx.keyTilt(input.tilt(), renderDt);
     if (expandPanel.isOpen) expandPanel.refresh();
@@ -1390,16 +1666,10 @@ function frame(now: number): void {
   gfx.traffic?.setEnabled(!state || state.phase === 'prep');
 
   if (state) {
-    if (travel) {
-      const t = 1 - travel.remaining / travel.total;
-      const e = t * t * (3 - 2 * t);
-      gfx.setMarkers(
-        { x: travel.from.x + (travel.dest.x - travel.from.x) * e, z: travel.from.z + (travel.dest.z - travel.from.z) * e },
-        state.plotId ? placePoint(state, 'base') : null,
-      );
-    }
     const unread = state.messages.filter((m) => m.id > seenMsgId && m.kind !== 'order').length;
     gfx.render(screen === 'play' ? renderDt : 0, visualSeconds(state));
+    ui.setPrompt(promptFor(state));
+    minimap.update({ x: state.pos.x, z: state.pos.z, heading: state.pos.heading, land: landOf(state) ?? null, waypoint });
     const day = dayOf(state.worldSeconds);
     ui.updateHud({
       day,
@@ -1413,7 +1683,8 @@ function frame(now: number): void {
       pendingOrders: state.orders.filter((o) => o.status === 'transit').length,
       canBuild: state.plotId !== null,
       objective: objective(state),
-      location: placeName(state.at),
+      location: placeName(state),
+      waypoint: waypointText(),
       dayPart: dayPart(hourOf(state.worldSeconds)),
       raining: gfx.atmosphere.rain > 0.15,
       muted: audio.isMuted,
@@ -1473,12 +1744,102 @@ if (import.meta.env.DEV) {
       if (delta > 0) stepSim(state, 0, delta);
       else state.worldSeconds = worldSecondsAt(day, hour);
     },
+    /** Park a new vehicle beside the player (for testing). */
+    giveVehicle(type: VehicleId, fuel?: number) {
+      if (!state) return null;
+      const def = VEHICLES[type];
+      const v = addVehicle(state, type, { x: state.pos.x + 4, z: state.pos.z, heading: 0 });
+      if (fuel !== undefined && def.fuel !== 'none') v.fuel = Math.min(fuel, def.tank);
+      gfx.syncVehicles(state.vehicles);
+      return JSON.parse(JSON.stringify(v));
+    },
+    vehicles() {
+      return state ? JSON.parse(JSON.stringify(state.vehicles)) : [];
+    },
+    /** Change numbers on a vehicle (for testing). */
+    setVehicle(id: number, patch: Partial<OwnedVehicle>) {
+      const v = state?.vehicles.find((x) => x.id === id);
+      if (v) Object.assign(v, patch);
+      if (state) gfx.syncVehicles(state.vehicles);
+    },
+    /** Hold the driving controls for some seconds without keys, with the real rules (for testing). */
+    drive(throttle: number, steer: number, seconds: number, brake = false) {
+      if (!state) return null;
+      const v = drivenVehicle(state);
+      if (!v) return null;
+      const log = { damage: 0, ranDry: false, brokeDown: false, topSpeed: 0 };
+      for (let t = 0; t < seconds; t += 0.04) {
+        const r = driveStep(state, v, { throttle, steer, brake }, 0.04);
+        log.damage += r.damage;
+        log.ranDry ||= r.ranDry;
+        log.brokeDown ||= r.brokeDown;
+        log.topSpeed = Math.max(log.topSpeed, Math.abs(v.speed));
+      }
+      gfx.setPlayer(state.pos, v.heading, 0, true);
+      gfx.syncVehicles(state.vehicles);
+      updatePlace();
+      return { ...log, player: { x: state.pos.x, z: state.pos.z }, v: JSON.parse(JSON.stringify(v)), surface: surfaceAt(v.x, v.z), top: topSpeedOn(v, surfaceAt(v.x, v.z)) };
+    },
+    enterVehicle(id?: number) {
+      if (!state) return null;
+      if (id === undefined) return enterNearest();
+      return startDriving(id);
+    },
+    exitVehicle() {
+      stopDriving();
+      return state?.driving ?? null;
+    },
+    parkingSpot(where: 'dealer' | 'base') {
+      return state ? parkingSpot(state, where, 2) : null;
+    },
+    /** Put the player at a spot, or at a place by name, and draw the world around it (for testing). */
+    teleport(x: number, z: number) {
+      teleport(x, z);
+    },
+    teleportTo(place: PlaceId) {
+      teleportTo(place);
+    },
+    /** Where the player is and what is near (for testing). */
+    player() {
+      return state ? { ...state.pos, at: state.at, walkSpeed, waypoint, prompt: promptFor(state) } : null;
+    },
+    /** Press the use key (for testing). */
+    interact() {
+      interact();
+    },
+    /** Walk in a ground direction for some seconds without keys, with the real collision rules (for testing). */
+    walk(dx: number, dz: number, seconds: number, run = false) {
+      if (!state) return null;
+      const len = Math.hypot(dx, dz) || 1;
+      const v = run ? RUN_SPEED : WALK_SPEED;
+      for (let t = 0; t < seconds; t += 0.05) {
+        const next = moveWalker(state.pos, (dx / len) * v * 0.05, (dz / len) * v * 0.05, 0.45);
+        state.pos.x = next.x;
+        state.pos.z = next.z;
+      }
+      gfx.setPlayer(state.pos, state.pos.heading, 0);
+      updatePlace();
+      return { x: state.pos.x, z: state.pos.z, at: state.at };
+    },
+    /** Ground directions of up and right on the screen (for testing). */
+    viewAxes() {
+      return gfx.groundAxes;
+    },
+    /** Chunk numbers (for testing). */
+    world() {
+      return gfx.streamer?.stats() ?? null;
+    },
+    /** Set a waypoint (for testing). */
+    waypoint(x: number, z: number) {
+      setWaypoint(x, z, 'Test');
+    },
     /** Own a plot without paying (for testing). */
     ownPlot(id: PlotId) {
       if (!state) return;
       state.plotId = id;
       gfx.setOwnedPlot(id, landOf(state));
       syncMarkers();
+      teleportTo('base');
     },
     /** Put a finished structure on the base without paying or waiting (for testing). Returns an error text or null. */
     placeDone(type: string, cx: number, cz: number, rot = 0) {
@@ -1625,6 +1986,8 @@ if (import.meta.env.DEV) {
     },
     /** Move the camera to a map point without easing. */
     snapCamera(x: number, z: number) {
+      gfx.leash = false;
+      gfx.streamer?.loadAround(x, z);
       gfx.snapTo({ x, z });
     },
     /** Client pixel position of a map point. */
