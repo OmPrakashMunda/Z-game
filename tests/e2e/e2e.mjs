@@ -59,6 +59,8 @@ check('there is no instant travel button any more', (await page.getByRole('butto
 await page.getByRole('button', { name: /Set waypoint/ }).click();
 await page.waitForTimeout(400);
 check('the waypoint shows in the top bar', await page.locator('.hud .waypoint').isVisible());
+await page.evaluate(() => window.__game.teleport(0, 30));
+await page.waitForTimeout(500);
 const p0 = await P();
 await page.keyboard.down('KeyD');
 await page.waitForTimeout(6000);

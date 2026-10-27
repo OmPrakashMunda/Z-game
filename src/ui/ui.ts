@@ -109,7 +109,6 @@ export class UI {
   private readonly newsBtn: HTMLButtonElement;
   private readonly newsCount: HTMLElement;
   private readonly goalEl = el('div', 'goal');
-  private readonly helpEl = el('div', 'help', 'WASD: walk   Shift: run   Space: enter or use   Q/E, Z/C or right-drag: turn and tilt the view   Wheel: zoom   Click a place: info and waypoint   Esc: menu');
   private readonly tooltipEl = el('div', 'tooltip');
   private overlay: HTMLElement | null = null;
   private toastEl: HTMLElement | null = null;
@@ -201,7 +200,7 @@ export class UI {
     this.tooltipEl.style.display = 'none';
     this.goalEl.style.display = 'none';
     this.setHudVisible(false);
-    root.append(this.hud, this.dock, this.goalEl, this.helpEl, this.tooltipEl);
+    root.append(this.hud, this.dock, this.goalEl, this.tooltipEl);
   }
 
   /** Show which cheats are on, so you never forget one. Hidden when none are. */
@@ -233,7 +232,6 @@ export class UI {
   setHudVisible(visible: boolean): void {
     this.hud.style.display = visible ? 'flex' : 'none';
     this.dock.style.display = visible ? 'flex' : 'none';
-    this.helpEl.style.display = visible ? 'block' : 'none';
     if (!visible) {
       this.goalEl.style.display = 'none';
       this.tooltipEl.style.display = 'none';
