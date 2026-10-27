@@ -1,4 +1,5 @@
 import { chromium } from 'playwright-core';
+import { newGame } from './helpers.mjs';
 const PORT = process.env.PORT;
 const browser = await chromium.launch({
   executablePath: process.env.CHROME_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
@@ -17,8 +18,7 @@ const money = () => G(() => window.__game.state.money);
 
 await page.goto(`http://localhost:${PORT}/?quality=low`);
 await page.waitForTimeout(2500);
-await page.getByText('New Game').click();
-await page.getByRole('button', { name: 'Start game' }).click();
+await newGame(page);
 await page.waitForTimeout(1500);
 await G(() => { window.__game.survivalOff(true); window.__game.setRain(0); window.__game.ownPlot('warehouse'); window.__game.state.at = 'base'; });
 
@@ -82,10 +82,7 @@ check('the outbreak drops the speed back to normal', (await info()).chosen === 1
 await G(() => window.__game.skipToDay(1, 12));
 await page.reload();
 await page.waitForTimeout(2500);
-await page.getByText('New Game').click();
-const confirm = page.getByText('Start new game');
-if (await confirm.isVisible().catch(() => false)) await confirm.click();
-await page.getByRole('button', { name: 'Start game' }).click();
+await newGame(page);
 await page.waitForTimeout(1500);
 await G(() => { window.__game.survivalOff(true); window.__game.setRain(0); window.__game.ownPlot('warehouse'); window.__game.state.at = 'base'; window.__game.skipToDay(1, 12); });
 const before = await money();

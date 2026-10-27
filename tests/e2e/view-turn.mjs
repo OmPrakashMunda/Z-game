@@ -1,4 +1,5 @@
 import { chromium } from 'playwright-core';
+import { newGame } from './helpers.mjs';
 import { createHash } from 'node:crypto';
 const out = (process.env.SHOTS_DIR || process.env.TEMP || '.') + '/';
 const PORT = process.env.PORT;
@@ -20,8 +21,7 @@ const deg = () => G(() => window.__game.viewDegrees());
 
 await page.goto(`http://localhost:${PORT}/?quality=low`);
 await page.waitForTimeout(2500);
-await page.getByText('New Game').click();
-await page.getByRole('button', { name: 'Start game' }).click();
+await newGame(page);
 await page.waitForTimeout(1500);
 await G(() => {
   const g = window.__game;

@@ -1,4 +1,5 @@
 import { chromium } from 'playwright-core';
+import { newGame, continueGame } from './helpers.mjs';
 
 // Character creation, seasons, weather on the whole screen, what the weather does to the character, clothes, and the lights.
 const out = (process.env.SHOTS_DIR || process.env.TEMP || '.') + '/';
@@ -20,18 +21,8 @@ const setW = (o) => G((o) => window.__game.setWeatherOverride(o), o);
 await page.goto(`http://localhost:${process.env.PORT || 5173}/?quality=low`);
 await page.waitForTimeout(2500);
 
-// ---- Choosing a character
-await page.getByText('New Game').click();
-await page.waitForTimeout(500);
-check('New Game opens the character creator', await page.locator('.creator').isVisible());
-check('it has a name and two choices', (await page.locator('.name-input').inputValue()).length > 0 && (await page.locator('.gender-btn').count()) === 2);
-await page.getByRole('button', { name: 'Back' }).click();
-await page.waitForTimeout(400);
-check('Back returns to the title screen', await page.getByText('New Game').isVisible());
-await page.getByText('New Game').click();
-await page.getByRole('button', { name: /Woman/ }).click();
-await page.locator('.name-input').fill('Mara');
-await page.getByRole('button', { name: 'Start game' }).click();
+// ---- Choosing a character (the screens themselves are tested in title.mjs)
+await newGame(page, { name: 'Mara', gender: 'female' });
 await page.waitForTimeout(1500);
 let st = await G(() => JSON.parse(JSON.stringify({ c: window.__game.state.character, o: window.__game.state.outfit })));
 check('the game starts with the name and gender chosen', st.c.name === 'Mara' && st.c.gender === 'female', JSON.stringify(st.c));
@@ -284,10 +275,7 @@ await page.reload();
 await page.waitForTimeout(2500);
 
 // ---- Starting a new game for the rest
-await page.getByText('New Game').click();
-await page.waitForTimeout(500);
-if (await page.getByText('Start new game').isVisible().catch(() => false)) await page.getByText('Start new game').click();
-await page.getByRole('button', { name: 'Start game' }).click();
+await newGame(page);
 await page.waitForTimeout(1500);
 await G(() => window.__game.setWeatherOverride({ rain: 0, snow: 0, storm: 0, cloud: 0.2, temp: 18, anomaly: null, anomalyLevel: 0 }));
 
@@ -366,7 +354,7 @@ const savedWx = await G(() => ({ c: window.__game.state.character, o: window.__g
 await G(() => window.__game.save());
 await page.reload();
 await page.waitForTimeout(2500);
-await page.getByText('Continue').click();
+await continueGame(page);
 await page.waitForTimeout(1500);
 const loaded = await G(() => ({ c: window.__game.state.character, o: window.__game.state.outfit, s: window.__game.state.calendarShift, w: window.__game.state.wet }));
 check('name, clothes, wetness and the calendar survive a reload', JSON.stringify(savedWx.c) === JSON.stringify(loaded.c) && JSON.stringify(savedWx.o) === JSON.stringify(loaded.o) && savedWx.s === loaded.s && Math.abs(savedWx.w - loaded.w) < 0.1, JSON.stringify(loaded));

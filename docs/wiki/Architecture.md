@@ -16,6 +16,7 @@ src/
     vehicles.ts        The seven vehicles and the parts that fit them
     weights.ts         How heavy things are; the backpack size
     items.ts           Supplies, plus every structure as a product
+    looks.ts           Skin, hair and shirt colours; the look of a survivor
     stores.ts          What each shop (and the online store) stocks
     structures.ts      Every placeable structure: size, price, strength, build time, look
     clothing.ts        The 18 clothes: slot, warmth, dryness; the starter outfit
@@ -56,6 +57,7 @@ src/
     lines.ts           Fence, wall and hedge geometry
     merge.ts           Merges static models by vertex colour to cut draw calls
     atmosphere.ts      Clouds, birds, fireflies, wind, lightning
+    preview.ts         The small turntable that shows the survivor on the character screens
     weatherfx.ts       Rain and snow painted over the whole screen by one shader
     seasonfx.ts        Leaf, ground and snow colours shared by the trees and the ground
     traffic.ts         Cars and traffic lights
@@ -64,7 +66,9 @@ src/
     thumbnails.ts      Product pictures rendered from the 3D models
   ui/                DOM panels (no framework)
   audio/             Web Audio synthesis (no audio files)
-  save/store.ts      IndexedDB save slot with a backup copy and migration
+  save/store.ts      IndexedDB save slots (three) with a backup copy each, and migration
+  profile/           The username and look kept across games (localStorage)
+  account/           Who is playing (a guest today) and where sign-in will plug in
   director/          Placeholder for the AI events director (later)
 public/sw.js         Service worker: caches game files and pictures
 .kiro/specs/         Requirements, design and tasks
@@ -120,7 +124,7 @@ load without a bump. When the shape really changes, bump the version and fill th
   and the `setRain` / `setWeatherOverride` dev hooks set. The picture and the rules always agree.
 - `stepExposure` (`sim/exposure.ts`) runs from `stepSim` after survival. Shelter means a shop door, the base or a closed
   vehicle. `rt.disabled` (`survivalOff`) and `godMode` switch the damage off.
-- `GameState` has `character` (name, gender), `outfit` (five slots) and `wet`. `SAVE_VERSION` is 9; older saves get a
+- `GameState` has `character` (name, gender, look), `outfit` (five slots) and `wet`. `SAVE_VERSION` is 10; older saves get a
   default survivor in a plain outfit.
 - Lamps, floodlights and fires that are working (`litSources` in `main.ts`) draw glow pools on the ground and feed six
   point lights. The count of point lights never changes, so the shaders are not rebuilt.

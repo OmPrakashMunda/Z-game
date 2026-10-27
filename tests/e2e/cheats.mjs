@@ -1,4 +1,5 @@
 import { chromium } from 'playwright-core';
+import { newGame, continueGame } from './helpers.mjs';
 const PORT = process.env.PORT;
 const browser = await chromium.launch({
   executablePath: process.env.CHROME_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
@@ -26,8 +27,7 @@ const piece = (type) => G((t) => window.__game.state.pieces.find((p) => p.type =
 
 await page.goto(`http://localhost:${PORT}/?quality=low`);
 await page.waitForTimeout(2500);
-await page.getByText('New Game').click();
-await page.getByRole('button', { name: 'Start game' }).click();
+await newGame(page);
 await page.waitForTimeout(1500);
 await G(() => {
   const g = window.__game;
@@ -196,7 +196,7 @@ await page.keyboard.press('Escape'); // opens the menu
 await page.waitForTimeout(500);
 await page.getByText('Save & exit to title').click();
 await page.waitForTimeout(2500);
-await page.getByText('Continue').click();
+await continueGame(page);
 await page.waitForTimeout(2500);
 check('leaving the game and coming back switches the cheats off', (await tag()) === '', await tag());
 const shop2 = await G(async () => { const e = await import('/src/sim/economy.ts'); const st = window.__game.state; st.money = 100; return e.quote(st, 'online', { wall_concrete: 1 }).total; });
@@ -209,7 +209,7 @@ await cheat('freeshop');
 await page.waitForTimeout(2200);
 await page.reload();
 await page.waitForTimeout(2500);
-await page.getByText('Continue').click();
+await continueGame(page);
 await page.waitForTimeout(2000);
 check('reloading the page switches the cheats off', (await tag()) === '');
 const shop3 = await G(async () => { const e = await import('/src/sim/economy.ts'); const st = window.__game.state; return e.quote(st, 'online', { wall_concrete: 1 }).total; });

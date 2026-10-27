@@ -1,4 +1,5 @@
 import { chromium } from 'playwright-core';
+import { newGame, continueGame } from './helpers.mjs';
 
 const out = (process.env.SHOTS_DIR || process.env.TEMP || '.') + '/';
 const browser = await chromium.launch({
@@ -25,8 +26,7 @@ const placeFrom = async (name) => { await openStorage(); await page.locator('.dr
 
 await page.goto(`http://localhost:${process.env.PORT || 5173}/?quality=low`);
 await page.waitForTimeout(2500);
-await page.getByText('New Game').click();
-await page.getByRole('button', { name: 'Start game' }).click();
+await newGame(page);
 await page.waitForTimeout(1200);
 await page.evaluate(() => window.__game.survivalOff(true));
 await page.evaluate(() => window.__game.ownPlot('warehouse'));
@@ -191,7 +191,7 @@ await page.screenshot({ path: out + 'b7-after.png' });
 await page.waitForTimeout(2200); // let the delayed autosave run
 await page.reload();
 await page.waitForTimeout(2500);
-await page.getByText('Continue').click();
+await continueGame(page);
 await page.waitForTimeout(1500);
 s = await S();
 check('structures survive save and reload', s.pieces.length === 7 && s.storage.fence_wood === 14, `(pieces ${s.pieces.length})`);

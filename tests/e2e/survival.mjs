@@ -1,4 +1,5 @@
 import { chromium } from 'playwright-core';
+import { newGame, continueGame } from './helpers.mjs';
 const out = (process.env.SHOTS_DIR || process.env.TEMP || '.') + '/';
 const PORT = process.env.PORT || '5173';
 const browser = await chromium.launch({
@@ -17,10 +18,7 @@ const near = (v, lo, hi) => v >= lo && v <= hi;
 async function fresh() {
   await page.goto(`http://localhost:${PORT}/?quality=low`);
   await page.waitForTimeout(2500);
-  await page.getByText('New Game').click();
-  const confirm = page.getByText('Start new game');
-  if (await confirm.isVisible().catch(() => false)) await confirm.click();
-  await page.getByRole('button', { name: 'Start game' }).click();
+    await newGame(page);
   await page.waitForTimeout(1200);
   await G(() => { window.__game.setRain(0); window.__game.ownPlot('warehouse'); window.__game.state.at = 'base'; });
 }
@@ -72,6 +70,7 @@ await page.screenshot({ path: out + 'sv2-dead.png' });
 await fresh();
 // Build the scene with survival paused, so the live game loop cannot tick between the steps of this test
 await G(() => window.__game.survivalOff(true));
+const bottles0 = await G(() => window.__game.state.storage.bottled_water);
 await place('well_hand', 2, 2);
 await place('water_tank', 4, 2);   // 2 m from the well: joined
 await place('water_tank', 12, 2);  // far away: not joined
@@ -90,7 +89,7 @@ const near1 = st.pieces.filter((p) => p.type === 'water_tank')[0];
 const far1 = st.pieces.filter((p) => p.type === 'water_tank')[1];
 check('the well fills the joined tank', near(near1.level ?? 0, 50, 62), `(${(near1.level ?? 0).toFixed(1)} L after 5 h)`);
 check('the far tank stays empty', (far1.level ?? 0) < 0.01);
-check('bottled water is untouched while the tank supplies the family', st.storage.bottled_water === 2);
+check('bottled water is untouched while the tank supplies the family', st.storage.bottled_water === bottles0, `(${st.storage.bottled_water} left, tank ${(near1.level ?? 0).toFixed(1)} L, thirst ${st.player.thirst.toFixed(1)})`);
 await place('pipe_post', 7, 2);
 await adv(0.1);
 await refresh();
@@ -155,10 +154,10 @@ await page.screenshot({ path: out + 'sv5-poles.png' });
 await page.evaluate(() => window.__game.save());
 await page.reload();
 await page.waitForTimeout(2500);
-await page.getByText('Continue').click();
+await continueGame(page);
 await page.waitForTimeout(1500);
 st = await S();
-check('battery charge survives save and reload', st.pieces.some((p) => p.type === 'battery_bank' && (p.level ?? 0) > 0.3) && st.version === 9);
+check('battery charge survives save and reload', st.pieces.some((p) => p.type === 'battery_bank' && (p.level ?? 0) > 0.3) && st.version === 10);
 
 // =============================================================== 4. Generators and fuel
 await fresh();

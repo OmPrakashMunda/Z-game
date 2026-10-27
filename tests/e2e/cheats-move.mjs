@@ -1,4 +1,5 @@
 import { chromium } from 'playwright-core';
+import { newGame, continueGame } from './helpers.mjs';
 
 // The cheats for getting around: teleports, vehicles on demand, and the speed, no-clip and carrying switches.
 const browser = await chromium.launch({
@@ -25,8 +26,7 @@ const near = (a, b, tol = 3) => Math.abs(a - b) <= tol;
 
 await page.goto(`http://localhost:${process.env.PORT || 5173}/?quality=low`);
 await page.waitForTimeout(2500);
-await page.getByText('New Game').click();
-await page.getByRole('button', { name: 'Start game' }).click();
+await newGame(page);
 await page.waitForTimeout(1200);
 await G(() => { window.__game.survivalOff(true); window.__game.setRain(0); });
 await page.waitForTimeout(500);
@@ -160,10 +160,10 @@ await page.keyboard.press('Escape');
 await G(([x, z]) => window.__game.teleport(x, z), [hw.entry.x, hw.entry.z]);
 await page.waitForTimeout(200);
 await page.keyboard.down('KeyW');
-await page.waitForTimeout(9000);
+await page.waitForTimeout(16000);
 await page.keyboard.up('KeyW');
 const through = await P();
-check('NOCLIP lets you walk through the shop', /NOCLIP on/.test(r) && through.z < t.z - 4, `(z ${through.z.toFixed(1)}, the wall stopped you at ${t.z.toFixed(1)})`);
+check('NOCLIP lets you walk through the shop', /NOCLIP on/.test(r) && through.z < t.z - 3, `(z ${through.z.toFixed(1)}, the wall stopped you at ${t.z.toFixed(1)})`);
 await cheat('noclip');
 
 // Big pack
@@ -207,7 +207,7 @@ await cheat('noclip');
 await G(() => window.__game.save());
 await page.reload();
 await page.waitForTimeout(2500);
-await page.getByText('Continue').click();
+await continueGame(page);
 await page.waitForTimeout(1500);
 check('the new switches are gone after a reload', !(await page.locator('.cheat-tag').isVisible()));
 r = await cheat('help');

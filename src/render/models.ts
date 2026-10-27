@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { BuildingDef, DirtRoad, PlotDef, PropDef, Rect } from '../data/city';
+import { defaultLook, HAIR_COLORS, SHIRT_COLORS, SKIN_TONES, type Gender, type Look } from '../data/looks';
 import { mergeStatic } from './merge';
 
 /**
@@ -528,9 +529,16 @@ export function makeCharacter(opts: { shirt: number; pants: number; skin: number
   return { group: shadow(group), legL, legR, armL, armR };
 }
 
-export function makePlayer(gender: 'male' | 'female' = 'male'): CharacterRig {
-  if (gender === 'female') return makeCharacter({ shirt: 0xc2507f, pants: 0x3a3f4a, skin: 0xf0c9a0, hair: 0x2c1b10, backpack: true, longHair: true });
-  return makeCharacter({ shirt: 0x2f6fb3, pants: 0x3a3f4a, skin: 0xf0c9a0, hair: 0x4a3320, backpack: true });
+/** The survivor, dressed and coloured by the look the player chose. */
+export function makePlayer(gender: Gender = 'male', look: Look = defaultLook(gender)): CharacterRig {
+  return makeCharacter({
+    shirt: SHIRT_COLORS[look.shirt],
+    pants: 0x3a3f4a,
+    skin: SKIN_TONES[look.skin],
+    hair: look.hairStyle === 'bald' ? undefined : HAIR_COLORS[look.hair],
+    backpack: true,
+    longHair: look.hairStyle === 'long',
+  });
 }
 
 export function animateCharacter(rig: CharacterRig, time: number, speed: number): void {

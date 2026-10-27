@@ -40,7 +40,7 @@ try {
   }
   if (-not $up) { Write-Error "The dev server did not start on port $Port."; exit 2 }
 
-  $scripts = Get-ChildItem "$here\*.mjs" | Sort-Object Name
+  $scripts = Get-ChildItem "$here\*.mjs" | Where-Object { $_.Name -ne 'helpers.mjs' } | Sort-Object Name
   if ($Only.Count -gt 0) { $scripts = $scripts | Where-Object { $Only -contains $_.BaseName } }
   if ($scripts.Count -eq 0) { Write-Error 'No test matches -Only.'; exit 2 }
 

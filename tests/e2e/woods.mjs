@@ -1,4 +1,5 @@
 import { chromium } from 'playwright-core';
+import { newGame } from './helpers.mjs';
 
 const out = (process.env.SHOTS_DIR || process.env.TEMP || '.') + '/';
 const browser = await chromium.launch({
@@ -15,8 +16,7 @@ const S = () => page.evaluate(() => JSON.parse(JSON.stringify({ at: window.__gam
 
 await page.goto(`http://localhost:${process.env.PORT || 5173}/?quality=low`);
 await page.waitForTimeout(2500);
-await page.getByText('New Game').click();
-await page.getByRole('button', { name: 'Start game' }).click();
+await newGame(page);
 await page.waitForTimeout(700);
 await page.evaluate(() => window.__game.survivalOff(true));
 await page.waitForTimeout(1200);

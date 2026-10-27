@@ -2,7 +2,7 @@
 
 ## Your character
 
-**New Game** opens the character creator. Choose a name and **Man** or **Woman**. The look of the walking figure follows
+A **new game** opens the survivor screen ([the title screen](Title-and-Profiles.md)). Choose a name, **Man** or **Woman**, a skin tone, hair and shirt colour. The look of the walking figure follows
 the choice (the woman has long hair and a different shirt). The name and gender are saved with the game. Older saves get
 a survivor called *Survivor*.
 

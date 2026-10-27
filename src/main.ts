@@ -17,7 +17,11 @@ import { Input } from './input';
 import { GameRenderer, type LightSource, type MapPoint, type PickResult } from './render/scene';
 import { prewarmThumbnails, preloadThumbnails, thumbnailStats } from './render/thumbnails';
 import { headlightMat } from './render/traffic';
-import { loadGame, saveGame } from './save/store';
+import { deleteGame, listSlots, saveGame } from './save/store';
+import { account } from './account/account';
+import { blankProfile, loadProfile, saveProfile } from './profile/profile';
+import { TitleScreen } from './ui/title';
+import { SHIRT_COLORS, SKIN_TONES } from './data/looks';
 import { advise, type Advice, type AdviceAction } from './sim/advisor';
 import { dayOf, dayPart, formatClock, hourOf, worldSecondsAt } from './sim/clock';
 import {
@@ -139,6 +143,8 @@ const ui = new UI(uiEl, {
   onResetView: () => gfx.resetView(),
   onToggleLines: () => toggleUtilityView(),
 });
+const titleUi = new TitleScreen(uiEl);
+let activeSlot = 1;
 const drawer = new Drawer(
   uiEl,
   (tab: DrawerTab | null) => {
@@ -251,7 +257,7 @@ async function persist(showToast = false): Promise<boolean> {
   if (!state || saving || state.phase === 'dead') return false;
   saving = true;
   try {
-    await saveGame(state);
+    await saveGame(state, activeSlot);
     if (showToast) ui.toast('Game saved', 'info');
     return true;
   } catch (err) {
@@ -275,7 +281,7 @@ window.addEventListener('pagehide', persistOnLeave);
 
 // ---------------------------------------------------------------- Game flow
 
-async function showTitle(): Promise<void> {
+function showTitle(): void {
   screen = 'title';
   resetCheatSession(cheatPictureHost);
   ui.setCheats([]);
@@ -291,32 +297,94 @@ async function showTitle(): Promise<void> {
   advisor.hide();
   gfx.setPlayer(null);
   gfx.jumpTo({ x: 0, z: 8 });
+  gfx.zoomTo(90);
   minimap.setVisible(false);
   dashboard.hide();
   waypoint = null;
   gfx.setInteractive(false);
-  const result = await loadGame();
-  const startNew = () => ui.showCharacterCreator({ onStart: (c) => beginGame(createNewGame(undefined, c), true), onBack: () => void showTitle() });
-
-  switch (result.status) {
-    case 'ok':
-      ui.showTitle({ hasSave: true, onContinue: () => beginGame(result.state, false), onNew: startNew });
-      break;
-    case 'recovered':
-      ui.showTitle({
-        hasSave: true, notice: result.message, noticeIsWarning: true,
-        onContinue: () => beginGame(result.state, false), onNew: startNew,
-      });
-      break;
-    case 'error':
-      ui.showTitle({ hasSave: false, notice: result.message, noticeIsWarning: true, onContinue: () => {}, onNew: startNew });
-      break;
-    default:
-      ui.showTitle({ hasSave: false, onContinue: () => {}, onNew: startNew });
-  }
+  ui.closeOverlay();
+  if (loadProfile()) showMainMenu();
+  else showWelcome();
 }
 
-function beginGame(next: GameState, isNew: boolean): void {
+/** The first time in this browser: choose a username and a look. */
+function showWelcome(): void {
+  const p = blankProfile();
+  titleUi.showCharacter({
+    mode: 'welcome', name: '', gender: p.gender, look: p.look,
+    onDone: (r) => {
+      saveProfile({ username: r.name, gender: r.gender, look: r.look });
+      showMainMenu();
+    },
+  });
+}
+
+function showMainMenu(notice?: string): void {
+  const profile = loadProfile() ?? blankProfile();
+  const user = account.user();
+  titleUi.showMain({
+    username: profile.username, gender: profile.gender, look: profile.look,
+    accountLabel: user.label, canSignIn: account.canSignIn, notice,
+    onSingle: () => void showSlots(),
+    onProfile: showProfile,
+    onSettings: showTitleSettings,
+    onSignIn: () => void account.signIn().catch((err) => showMainMenu(String(err instanceof Error ? err.message : err))),
+  });
+}
+
+function showProfile(): void {
+  const profile = loadProfile() ?? blankProfile();
+  titleUi.showCharacter({
+    mode: 'profile', name: profile.username, gender: profile.gender, look: profile.look,
+    onDone: (r) => {
+      saveProfile({ username: r.name, gender: r.gender, look: r.look });
+      showMainMenu();
+    },
+    onBack: () => showMainMenu(),
+  });
+}
+
+function showTitleSettings(): void {
+  titleUi.showSettings({
+    volume: audio.level, muted: audio.isMuted,
+    onVolume: (v) => audio.setVolume(v),
+    onMute: (m) => audio.setMuted(m),
+    onBack: () => showMainMenu(),
+  });
+}
+
+async function showSlots(): Promise<void> {
+  const slots = await listSlots();
+  titleUi.showSlots({
+    slots,
+    onContinue: (slot, result) => beginGame(result.state, false, slot),
+    onNew: (slot) => startSurvivor(slot),
+    onDelete: (slot) => {
+      void deleteGame(slot)
+        .catch((err) => ui.toast(`Could not delete that game: ${String(err)}`))
+        .then(() => showSlots());
+    },
+    onBack: () => showMainMenu(),
+  });
+}
+
+/** Name and dress the survivor of a new game, then start it in the chosen slot. */
+function startSurvivor(slot: number): void {
+  const profile = loadProfile() ?? blankProfile();
+  titleUi.showCharacter({
+    mode: 'survivor', name: profile.username, gender: profile.gender, look: profile.look,
+    onDone: (c) => {
+      // The next new game starts with the same look
+      saveProfile({ username: profile.username, gender: c.gender, look: c.look });
+      beginGame(createNewGame(undefined, { name: c.name, gender: c.gender, look: c.look }), true, slot);
+    },
+    onBack: () => void showSlots(),
+  });
+}
+function beginGame(next: GameState, isNew: boolean, slot = 1): void {
+  activeSlot = slot;
+  titleUi.close();
+  gfx.snapDefaultView();
   resetCheatSession(cheatPictureHost);
   ui.setCheats([]);
   state = next;
@@ -333,7 +401,7 @@ function beginGame(next: GameState, isNew: boolean): void {
   if (state.driving !== null && !drivenVehicle(state)) state.driving = null;
   dashboard.hide();
   gfx.jumpTo(state.pos);
-  gfx.setPlayerLook(state.character.gender);
+  gfx.setPlayerLook(state.character.gender, state.character.look);
   gfx.syncVehicles(state.vehicles);
   gfx.zoomTo(64);
   gfx.setPlayer(state.pos, state.pos.heading, 0);
@@ -1905,7 +1973,8 @@ function frame(now: number): void {
     if (drawer.isOpen && drawer.currentTab === 'news') seenMsgId = latestMsgId(state);
   } else {
     gfx.setWeather(TITLE_WEATHER);
-    gfx.render(0, worldSecondsAt(1, 11));
+    gfx.turn(renderDt * 0.045, true);
+    gfx.render(renderDt, worldSecondsAt(1, 11));
   }
 }
 
@@ -2152,6 +2221,12 @@ if (import.meta.env.DEV) {
         flash: gfx.atmosphere.flash,
         lights: gfx.lightInfo(),
       };
+    },
+    /** The colours the walking character was given (for testing). */
+    playerLook() {
+      const a = gfx.appliedLook;
+      if (!a?.look) return null;
+      return { shirt: SHIRT_COLORS[a.look.shirt], skin: SKIN_TONES[a.look.skin], hairStyle: a.look.hairStyle };
     },
     /** Run the traffic, clouds and rain forward by some seconds (for testing). */
     advanceScenery(seconds: number) {

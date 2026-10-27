@@ -9,10 +9,10 @@ npm install
 npm run dev
 ```
 
-Open the address Vite prints (usually http://localhost:5173). Click **New Game**, or **Continue** if you have a save.
+Open the address Vite prints (usually http://localhost:5173). The first time, choose a username and a look. Then pick **Single player**, and a save slot: **New game** in an empty one, or **Continue** in one that has a game.
 
-**New Game** opens the character creator. Type a name (or press **Another name** for a random one), choose **Man** or
-**Woman**, and press **Start game**. Both choices are saved with the game and shown in the character panel: see
+**New game** opens the survivor screen. Type a name (or press **Another name** for a random one), choose **Man** or
+**Woman**, a skin tone, hair and shirt colour, and press **Start game**. All of it is saved with the game and shown in the character panel: see
 [Clothing and character](Clothing-and-Character.md).
 
 `.npmrc` sets `legacy-peer-deps=true` because one dependency is picky about peer versions. You do not need to do anything.

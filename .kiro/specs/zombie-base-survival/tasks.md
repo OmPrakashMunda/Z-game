@@ -135,6 +135,20 @@ Each top-level task is a milestone that ends with something playable.
   - [x] 5b.7 Weather cheats, SETSEASON, GIVECLOTHES and the movement cheats; browser tests (weather.mjs, cheats-move.mjs)
     - _Requirements: 15.8_
 
+- [x] 5c. Title screen, profile and save slots
+  - [x] 5c.1 Add the looks tables, the look on the survivor, and save version 10
+    - _Requirements: 16.5_
+  - [x] 5c.2 Add three save slots with list, delete and migration of the old single save
+    - _Requirements: 16.3, 16.4_
+  - [x] 5c.3 Add the profile (username and look) and the account interface with a guest account
+    - _Requirements: 16.1, 16.6_
+  - [x] 5c.4 Add the main menu, slot screen, survivor screen with a 3D turntable, and title settings
+    - _Requirements: 16.2, 16.3, 16.5_
+  - [x] 5c.5 Move the browser tests to the real title flow (helpers.mjs) and add title.mjs
+    - _Requirements: 16.1-16.6_
+  - [ ] 5c.6 Sign in with Google and cloud saves (needs a Firebase project)
+    - _Requirements: 16.6_
+
 - [x] 6. M5: Survival and production
   - [x] 6.1 Implement thirst, hunger and health with the move-in supplies, daily use, and starvation (fatigue and sleeping left for later)
     - _Requirements: 8.1, 8.2, 8.3_

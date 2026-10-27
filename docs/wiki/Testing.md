@@ -23,7 +23,7 @@ Besides the browser tests, always run `npm run build`, which typechecks and buil
 
 | Script | Checks | Covers |
 | --- | --- | --- |
-| `e2e` | 18 | Title screen, new game, the clock, walking to shops, waypoints, buying a plot, saving and resuming |
+| `title` | 45 | The welcome screen and username, the main menu, profile, settings, the three save slots, the survivor screen, deleting, older saves | walking to shops, waypoints, buying a plot, saving and resuming |
 | `world` | 34 | World size, houses and ids, chunk streaming, walking, collision, the edge, cleared land, building collision (fence, gate, house, path), the corner map, saving the position, old saves |
 | `vehicles` | 45 | The seven vehicles, buying, getting in and out, speed and surfaces, fuel, crashes, parts, repairs, a trailer, cheats, saving |
 | `loot` | 29 | Searching houses, loot that is the same every time, the backpack, leftovers, vehicles taking the load, the cargo panel, saving |
@@ -44,7 +44,7 @@ Besides the browser tests, always run `npm run build`, which typechecks and buil
 | `cheat-box` | 13 | Opening the cheat box, typing safely, `BUILDNOW`, `MONEY` |
 | `cheats` | 43 | Every cheat, and that cheats end with the session (title screen and reload) |
 | `cheats-move` | 33 | The movement cheats: BACKTOBASE, GOTO, GOTOHOUSE, COORDS, GIVECAR, CALLCAR, FASTFEET, NOCLIP, BIGPACK, TURBO, and that they end with the session |
-| `weather` | 54 | The character creator, seasons, weather as data, rain over the whole screen, lightning, health lost to rain, cold, heat and lightning, shelter, clothes and the character panel, lamp light at night, saving |
+| `weather` | 51 | Seasons, weather as data, rain over the whole screen, lightning, health lost to rain, cold, heat and lightning, shelter, clothes and the character panel, lamp light at night, saving |
 | `interact` | 43 | Placing from storage, the structure card, rotate, move, wear, repair, upgrade, clean, scrap, cables and pipes |
 
 The counts are what passes today. If you add a check, update the number here.
@@ -64,7 +64,7 @@ The counts are what passes today. If you add a check, update the number here.
 
 ## Known awkward spots
 
-- Every test starts a game by clicking **New Game** and then **Start game** in the character creator.
+- Every test starts a game with `newGame(page)` from `tests/e2e/helpers.mjs`, which goes through the real title screens (the username on the first visit, **Single player**, slot 1, **New game**, **Start game**). `continueGame(page)` opens the game in slot 1 again.
 - Headless Chrome has no GPU, so two browser tests at once make each other slow. Walking and timing checks can then fail for no real reason; run those one at a time.
 - Weather tests take over the sky with `setWeatherOverride` (or `setRain`) so the real weather does not change the result. `survivalOff(true)` also switches off weather damage.
 - Right after an edit, the dev server may reload the page under a running test. Do not edit while tests run.

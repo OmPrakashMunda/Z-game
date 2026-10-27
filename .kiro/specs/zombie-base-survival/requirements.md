@@ -215,6 +215,18 @@ This spec covers the first playable version (milestones M0–M7). Cloud saves, t
 8. The system SHALL show drifting cloud shadows by day, flocks of birds crossing by day, fireflies among the trees at night, and occasional rain showers that dim the light and are marked in the HUD.
 9. The scenery SHALL be decoration only: it SHALL NOT be saved and SHALL NOT affect the game rules.
 
+### Requirement 16: Title screen, profile and save slots
+
+**User Story:** As a player, I want a proper start to the game, with my own name and look and several saved games, so that it feels like a real game and I can keep more than one.
+
+#### Acceptance Criteria
+1. The first time the game opens in a browser, the system SHALL ask for a username (3 to 16 letters, numbers, spaces, underscores or hyphens) and a look (gender, skin, hair style, hair colour, shirt colour), and SHALL keep them as the player's profile.
+2. The system SHALL show a main menu with Single player, Multiplayer (marked as coming soon and not usable), Profile and Settings, over the 3D town, and the profile with a guest label and a Sign in with Google button that is shown but off until sign-in exists.
+3. The system SHALL keep three independent save slots. Each used slot SHALL show the survivor, the day, the money and when it was saved, and SHALL offer Continue, New game and Delete. Replacing or deleting a game SHALL ask first.
+4. The system SHALL save a game to the slot it was opened from. A save made before slots existed SHALL appear in the first slot, and saves without a look SHALL get the default look for their gender.
+5. Starting a new game SHALL open a survivor screen, filled in from the profile, with a turntable that shows the chosen look and can be turned by dragging. The survivor's name and look SHALL be saved with the game and shown on the walking character.
+6. Who is playing and whether sign-in is available SHALL come from one account interface, so that sign-in and cloud saves can be added without changing the screens.
+
 ### Requirement 13: Performance and robustness
 
 **User Story:** As a player, I want the game to run smoothly and fail gracefully.

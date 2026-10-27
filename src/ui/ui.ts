@@ -1,7 +1,6 @@
 import { button, el, money, type ButtonSpec } from './dom';
 import type { DrawerTab } from './drawer';
 import type { DayPart } from '../sim/clock';
-import type { Character, Gender } from '../sim/state';
 import { icon } from './icons';
 
 export interface HudData {
@@ -343,93 +342,11 @@ export class UI {
     this.overlay = overlay;
   }
 
-  showTitle(opts: {
-    hasSave: boolean;
-    notice?: string;
-    noticeIsWarning?: boolean;
-    onContinue: () => void;
-    onNew: () => void;
-  }): void {
-    const paras: Array<{ text: string; cls?: string }> = [
-      { text: 'The outbreak is 30 days away. You have a fortune and one chance to build a base that lasts. Buy land, order supplies, and fortify.' },
-    ];
-    if (opts.notice) paras.push({ text: opts.notice, cls: opts.noticeIsWarning ? 'warn' : 'sub' });
-    const buttons: ButtonSpec[] = [];
-    if (opts.hasSave) buttons.push({ label: 'Continue', onClick: opts.onContinue });
-    buttons.push({
-      label: 'New Game',
-      kind: opts.hasSave ? 'secondary' : undefined,
-      onClick: () => {
-        if (!opts.hasSave && !opts.notice) return opts.onNew();
-        this.confirm('Start a new game?', 'This will replace your current save.', 'Start new game', opts.onNew, () => this.showTitle(opts));
-      },
-    });
-    this.showCard('Z-Game: 30 Days', 'h1', paras, buttons);
-  }
-
   confirm(title: string, text: string, confirmLabel: string, onYes: () => void, onNo: () => void): void {
     this.showCard(title, 'h2', [{ text }], [
       { label: confirmLabel, kind: 'danger', onClick: onYes },
       { label: 'Cancel', kind: 'secondary', onClick: onNo },
     ]);
-  }
-
-  /** The step between "New Game" and the first day: choose who you are. */
-  showCharacterCreator(opts: { onStart: (c: Character) => void; onBack: () => void }): void {
-    const NAMES: Record<Gender, string[]> = {
-      male: ['Alex', 'Sam', 'Jack', 'Leo', 'Noah', 'Ben', 'Max', 'Ryan', 'Owen', 'Eli'],
-      female: ['Alex', 'Mia', 'Emma', 'Zoe', 'Lily', 'Ava', 'Nora', 'Ella', 'Ruby', 'Iris'],
-    };
-    const pickName = (g: Gender) => NAMES[g][Math.floor(Math.random() * NAMES[g].length)];
-    let gender: Gender = 'male';
-    const input = el('input', 'name-input') as HTMLInputElement;
-    input.type = 'text';
-    input.maxLength = 20;
-    input.placeholder = 'Your name';
-    input.value = pickName(gender);
-    input.setAttribute('aria-label', 'Your name');
-    const row = el('div', 'gender-row');
-    const buttons = new Map<Gender, HTMLButtonElement>();
-    const choose = (g: Gender) => {
-      const wasListed = NAMES[gender].includes(input.value) || input.value.trim() === '';
-      gender = g;
-      for (const [k, b] of buttons) b.classList.toggle('active', k === g);
-      if (wasListed) input.value = pickName(g);
-    };
-    for (const [g, label, iconName] of [['male', 'Man', 'Mars'], ['female', 'Woman', 'Venus']] as const) {
-      const b = el('button', 'gender-btn') as HTMLButtonElement;
-      b.append(icon(iconName, 30), el('span', undefined, label));
-      b.addEventListener('click', () => choose(g));
-      buttons.set(g, b);
-      row.append(b);
-    }
-    buttons.get('male')!.classList.add('active');
-    const dice = el('button', 'tool-btn');
-    dice.append(icon('RotateCw', 14), el('span', undefined, 'Another name'));
-    dice.addEventListener('click', () => {
-      input.value = pickName(gender);
-    });
-    const field = el('div', 'creator');
-    field.append(el('label', 'creator-label', 'Name'), input, dice, el('label', 'creator-label', 'You are'), row);
-    this.showCard(
-      'Create your survivor',
-      'h2',
-      [{ text: 'Choose who you are. Your name and look stay with you for the whole game.' }],
-      [
-        {
-          label: 'Start game',
-          onClick: () => {
-            const name = input.value.trim().slice(0, 20) || pickName(gender);
-            this.closeOverlay();
-            opts.onStart({ name, gender });
-          },
-        },
-        { label: 'Back', kind: 'secondary', onClick: opts.onBack },
-      ],
-      [field],
-    );
-    input.focus();
-    input.select();
   }
 
   showMenu(opts: {
@@ -481,7 +398,7 @@ export class UI {
       'h2',
       [
         { text: opts.reason },
-        { text: `You lasted until day ${opts.day}. Your last save is still there: choose Continue on the title screen to try again from it.`, cls: 'sub' },
+        { text: `You lasted until day ${opts.day}. Your last save is still there: open that slot on the title screen to try again from it.`, cls: 'sub' },
       ],
       [{ label: 'Back to the title screen', onClick: opts.onTitle }],
     );

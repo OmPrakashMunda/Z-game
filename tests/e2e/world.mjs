@@ -1,4 +1,5 @@
 import { chromium } from 'playwright-core';
+import { newGame, continueGame } from './helpers.mjs';
 
 // The big world: size, streaming, houses, walking, collision, the corner map and saving the player's position.
 const out = (process.env.SHOTS_DIR || process.env.TEMP || '.') + '/';
@@ -17,8 +18,7 @@ const P = () => G(() => JSON.parse(JSON.stringify(window.__game.player())));
 
 await page.goto(`http://localhost:${process.env.PORT || 5173}/?quality=low`);
 await page.waitForTimeout(2500);
-await page.getByText('New Game').click();
-await page.getByRole('button', { name: 'Start game' }).click();
+await newGame(page);
 await page.waitForTimeout(800);
 await G(() => { window.__game.survivalOff(true); window.__game.setRain(0); });
 await page.waitForTimeout(1200);
@@ -184,7 +184,7 @@ await page.waitForTimeout(500);
 await G(() => window.__game.save());
 await page.reload();
 await page.waitForTimeout(2500);
-await page.getByText('Continue').click();
+await continueGame(page);
 await page.waitForTimeout(1500);
 const back = await P();
 check('the player is where they were after a reload', Math.abs(back.x - 123.5) < 0.1 && Math.abs(back.z + 77.5) < 0.1, `(${back.x}, ${back.z})`);

@@ -4,20 +4,23 @@ import { STORES, type StoreId } from '../data/stores';
 import { worldSecondsAt } from './clock';
 import { startPosition } from './places';
 import { starterOutfit, type Outfit } from '../data/clothing';
+import { defaultLook, type Gender, type Look } from '../data/looks';
 import type { OwnedVehicle } from './vehicles';
 
 export type Phase = 'prep' | 'outbreak' | 'dead';
 
-export type Gender = 'male' | 'female';
+export type { Gender };
 
 /** Who the player is. Chosen when a game starts. */
 export interface Character {
   name: string;
   gender: Gender;
+  /** Skin, hair and shirt. */
+  look: Look;
 }
 
 export function defaultCharacter(): Character {
-  return { name: 'Alex', gender: 'male' };
+  return { name: 'Alex', gender: 'male', look: defaultLook('male') };
 }
 
 /**
@@ -158,7 +161,7 @@ export interface GameState {
 }
 
 /** Bump when the shape of GameState changes. Older saves are filled in by save/store.ts. */
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 
 export function initialSurvival(): SurvivalState {
   return {
@@ -190,7 +193,7 @@ export function createNewGame(seed = Date.now() % 2_147_483_647, character: Char
     money: balance.startingMoney,
     at: 'motel',
     pos: startPosition(),
-    character: { name: character.name, gender: character.gender },
+    character: { name: character.name, gender: character.gender, look: { ...character.look } },
     outfit: starterOutfit(),
     wet: 0,
     calendarShift: 0,

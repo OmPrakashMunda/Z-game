@@ -1,25 +1,27 @@
 import { CLOTHING } from '../data/clothing';
+import { cleanLook } from '../data/looks';
 import { placePoint } from '../sim/places';
 import { createNewGame, SAVE_VERSION, type GameState, type PlaceId } from '../sim/state';
 
 const DB_NAME = 'zgame';
 const STORE = 'saves';
-const SLOT = 'slot1';
-const BACKUP = 'slot1.backup';
+/** How many games can be kept side by side. */
+export const SLOT_COUNT = 3;
+const slotKey = (slot: number) => `slot${slot}`;
+const backupKey = (slot: number) => `slot${slot}.backup`;
 
 interface SaveEnvelope {
   version: number;
-  /** Informational only. Never used for gameplay time. */
+  /** When it was saved, in milliseconds. Informational only. Never used for gameplay time. */
   savedAt: number;
   state: GameState;
 }
 
 export type LoadResult =
   | { status: 'none' }
-  | { status: 'ok'; state: GameState }
-  | { status: 'recovered'; state: GameState; message: string }
+  | { status: 'ok'; state: GameState; savedAt: number }
+  | { status: 'recovered'; state: GameState; savedAt: number; message: string }
   | { status: 'error'; message: string };
-
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, 1);
@@ -112,7 +114,8 @@ function migratePosition(s: Partial<GameState>, d: GameState): GameState['pos'] 
 function migrateCharacter(s: Partial<GameState>, d: GameState): GameState['character'] {
   const c = s.character;
   const name = typeof c?.name === 'string' ? c.name.trim().slice(0, 20) : '';
-  return { name: name || 'Survivor', gender: c?.gender === 'female' ? 'female' : c?.gender === 'male' ? 'male' : d.character.gender };
+  const gender = c?.gender === 'female' ? 'female' : c?.gender === 'male' ? 'male' : d.character.gender;
+  return { name: name || 'Survivor', gender, look: cleanLook(c?.look, gender) };
 }
 function migrateOutfit(s: Partial<GameState>, d: GameState): GameState['outfit'] {
   const out = { ...d.outfit };
@@ -138,7 +141,27 @@ function isValidEnvelope(e: unknown): e is SaveEnvelope {
   );
 }
 
-export async function loadGame(): Promise<LoadResult> {
+async function readSlot(store: IDBObjectStore, slot: number): Promise<LoadResult> {
+  const current = await request(store.get(slotKey(slot)));
+  const backup = await request(store.get(backupKey(slot)));
+
+  if (current === undefined && backup === undefined) return { status: 'none' };
+  if (isValidEnvelope(current)) return { status: 'ok', state: migrate(current), savedAt: num(current.savedAt, 0) };
+  if (isValidEnvelope(backup)) {
+    return {
+      status: 'recovered',
+      state: migrate(backup),
+      savedAt: num(backup.savedAt, 0),
+      message: 'Your latest save could not be read. Loaded the previous save instead.',
+    };
+  }
+  return {
+    status: 'error',
+    message: 'The saved game could not be read (it may be corrupted or from a newer version).',
+  };
+}
+
+export async function loadGame(slot = 1): Promise<LoadResult> {
   let db: IDBDatabase;
   try {
     db = await openDb();
@@ -146,42 +169,63 @@ export async function loadGame(): Promise<LoadResult> {
     return { status: 'error', message: `Saving is unavailable in this browser: ${String(err)}` };
   }
   try {
-    const store = db.transaction(STORE, 'readonly').objectStore(STORE);
-    const current = await request(store.get(SLOT));
-    const backup = await request(store.get(BACKUP));
+    return await readSlot(db.transaction(STORE, 'readonly').objectStore(STORE), slot);
+  } finally {
+    db.close();
+  }
+}
 
-    if (current === undefined && backup === undefined) return { status: 'none' };
-    if (isValidEnvelope(current)) return { status: 'ok', state: migrate(current) };
-    if (isValidEnvelope(backup)) {
-      return {
-        status: 'recovered',
-        state: migrate(backup),
-        message: 'Your latest save could not be read. Loaded the previous save instead.',
-      };
-    }
-    return {
-      status: 'error',
-      message: 'The saved game could not be read (it may be corrupted or from a newer version).',
-    };
+/** What is in each of the save slots, for the slot screen. */
+export async function listSlots(): Promise<Array<{ slot: number; result: LoadResult }>> {
+  let db: IDBDatabase;
+  try {
+    db = await openDb();
+  } catch (err) {
+    const result: LoadResult = { status: 'error', message: `Saving is unavailable in this browser: ${String(err)}` };
+    return Array.from({ length: SLOT_COUNT }, (_, i) => ({ slot: i + 1, result }));
+  }
+  try {
+    const store = db.transaction(STORE, 'readonly').objectStore(STORE);
+    const out: Array<{ slot: number; result: LoadResult }> = [];
+    for (let slot = 1; slot <= SLOT_COUNT; slot++) out.push({ slot, result: await readSlot(store, slot) });
+    return out;
   } finally {
     db.close();
   }
 }
 
 /** Write the save. The previous valid save is kept as a backup. */
-export async function saveGame(state: GameState): Promise<void> {
+export async function saveGame(state: GameState, slot = 1): Promise<void> {
   const db = await openDb();
   try {
     const tx = db.transaction(STORE, 'readwrite');
     const store = tx.objectStore(STORE);
-    const previous = await request(store.get(SLOT));
-    if (isValidEnvelope(previous)) store.put(previous, BACKUP);
+    const previous = await request(store.get(slotKey(slot)));
+    if (isValidEnvelope(previous)) store.put(previous, backupKey(slot));
     const envelope: SaveEnvelope = { version: SAVE_VERSION, savedAt: Date.now(), state };
-    store.put(envelope, SLOT);
+    store.put(envelope, slotKey(slot));
     await new Promise<void>((resolve, reject) => {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error ?? new Error('Save failed'));
       tx.onabort = () => reject(tx.error ?? new Error('Save was aborted'));
+    });
+  } finally {
+    db.close();
+  }
+}
+
+/** Empty a slot, backup included. */
+export async function deleteGame(slot: number): Promise<void> {
+  const db = await openDb();
+  try {
+    const tx = db.transaction(STORE, 'readwrite');
+    const store = tx.objectStore(STORE);
+    store.delete(slotKey(slot));
+    store.delete(backupKey(slot));
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error ?? new Error('Delete failed'));
+      tx.onabort = () => reject(tx.error ?? new Error('Delete was aborted'));
     });
   } finally {
     db.close();

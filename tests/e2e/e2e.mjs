@@ -1,4 +1,5 @@
 import { chromium } from 'playwright-core';
+import { newGame, continueGame } from './helpers.mjs';
 
 const out = (process.env.SHOTS_DIR || process.env.TEMP || '.') + '/';
 const browser = await chromium.launch({
@@ -34,8 +35,7 @@ const shot = (name) => page.screenshot({ path: out + name });
 
 await page.goto(`http://localhost:${process.env.PORT || 5173}/?quality=low`);
 await page.waitForTimeout(1500);
-await page.getByText('New Game').click();
-await page.getByRole('button', { name: 'Start game' }).click();
+await newGame(page);
 await page.waitForTimeout(700);
 await page.evaluate(() => window.__game.survivalOff(true));
 await page.waitForTimeout(1500);
@@ -172,7 +172,7 @@ await page.waitForTimeout(500);
 const savedWs = (await S()).ws;
 await page.reload();
 await page.waitForTimeout(1800);
-await page.getByText('Continue').click();
+await continueGame(page);
 await page.waitForTimeout(800);
 s = await S();
 check('saved game resumes (plot, storage, phase, time)', s.plot === 'warehouse' && s.storage.container_20 === 2 && s.phase === 'outbreak' && Math.abs(s.ws - savedWs) < 120, `(saved ${savedWs}, resumed ${s.ws})`);

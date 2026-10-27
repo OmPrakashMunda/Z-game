@@ -21,6 +21,7 @@ import type { Piece } from '../sim/state';
 import { animateCharacter, glassMat, lampBulbMat, makeBuilding, makeDirtRoad, makeGasCanopy, makePin, makePlayer, makePlotMarker, makeProp, type CharacterRig } from './models';
 import { makeStructure } from './structures';
 import { Atmosphere } from './atmosphere';
+import type { Look } from '../data/looks';
 import { Traffic } from './traffic';
 
 export type PickResult =
@@ -607,10 +608,14 @@ export class GameRenderer {
   }
 
   /** Give the walking character the look the player chose. */
-  setPlayerLook(gender: 'male' | 'female'): void {
+  /** The gender and look the walking character was last given (for tests). */
+  appliedLook: { gender: 'male' | 'female'; look: Look | undefined } | null = null;
+
+  setPlayerLook(gender: 'male' | 'female', look?: Look): void {
+    this.appliedLook = { gender, look };
     const old = this.playerRig.group;
     this.scene.remove(old);
-    this.playerRig = makePlayer(gender);
+    this.playerRig = makePlayer(gender, look);
     this.playerRig.group.visible = old.visible;
     this.playerRig.group.position.copy(old.position);
     this.playerRig.group.rotation.y = old.rotation.y;
@@ -1271,6 +1276,14 @@ export class GameRenderer {
   /** Turn with the keyboard. dir is 1 (counter-clockwise), -1 (clockwise) or 0. */
   keyTurn(dir: number, dt: number): void {
     if (dir !== 0) this.turn(dir * KEY_TURN_RATE * dt, true);
+  }
+
+  /** Back to the default view at once. Used when a game starts after the title screen's slow turn. */
+  snapDefaultView(): void {
+    this.azimuth = DEFAULT_AZIMUTH;
+    this.azimuthTarget = DEFAULT_AZIMUTH;
+    this.elevation = CAM_ELEVATION;
+    this.elevationTarget = CAM_ELEVATION;
   }
 
   /** Go back to the default view, by the shorter way round. */

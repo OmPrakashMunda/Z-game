@@ -1,4 +1,5 @@
 import { chromium } from 'playwright-core';
+import { newGame, continueGame } from './helpers.mjs';
 
 const out = (process.env.SHOTS_DIR || process.env.TEMP || '.') + '/';
 const browser = await chromium.launch({
@@ -31,8 +32,7 @@ const money = (txt) => Number(txt.replace(/[^0-9]/g, ''));
 
 await page.goto(`http://localhost:${process.env.PORT || 5173}/?quality=low`);
 await page.waitForTimeout(2500);
-await page.getByText('New Game').click();
-await page.getByRole('button', { name: 'Start game' }).click();
+await newGame(page);
 await page.waitForTimeout(1200);
 await page.evaluate(() => window.__game.survivalOff(true));
 await page.evaluate(() => window.__game.ownPlot('warehouse'));
@@ -171,7 +171,7 @@ await page.keyboard.press('Escape');
 await page.waitForTimeout(2200);
 await page.reload();
 await page.waitForTimeout(2500);
-await page.getByText('Continue').click();
+await continueGame(page);
 await page.waitForTimeout(1500);
 s = await S();
 check('expanded land and structures survive a reload', s.expansion.e === 1 && s.pieces.length >= 11, `(${s.pieces.length} pieces, expansion ${JSON.stringify(s.expansion)})`);

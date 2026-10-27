@@ -1,4 +1,5 @@
 import { chromium } from 'playwright-core';
+import { newGame, continueGame } from './helpers.mjs';
 
 // Vehicles: buying, driving, fuel, crashes, repairs, fitted parts and saving.
 const out = (process.env.SHOTS_DIR || process.env.TEMP || '.') + '/';
@@ -36,8 +37,7 @@ const leave = async () => {
 
 await page.goto(`http://localhost:${process.env.PORT || 5173}/?quality=low`);
 await page.waitForTimeout(2500);
-await page.getByText('New Game').click();
-await page.getByRole('button', { name: 'Start game' }).click();
+await newGame(page);
 await page.waitForTimeout(800);
 await G(() => { window.__game.survivalOff(true); window.__game.setRain(0); window.__game.skipToDay(1, 12); });
 await page.waitForTimeout(800);
@@ -295,7 +295,7 @@ await G(() => window.__game.save());
 const saved = await G(() => window.__game.vehicles().map((q) => [q.type, Math.round(q.fuel * 10), q.parts.join(',')]));
 await page.reload();
 await page.waitForTimeout(2500);
-await page.getByText('Continue').click();
+await continueGame(page);
 await page.waitForTimeout(1500);
 const loaded = await G(() => window.__game.vehicles().map((q) => [q.type, Math.round(q.fuel * 10), q.parts.join(',')]));
 check('vehicles, their fuel and parts survive a reload', JSON.stringify(saved) === JSON.stringify(loaded) && loaded.length >= 8, `(${loaded.length} vehicles)`);

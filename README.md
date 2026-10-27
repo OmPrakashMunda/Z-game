@@ -18,7 +18,7 @@ npm install
 npm run dev
 ```
 
-Open the address Vite prints (usually http://localhost:5173), click **New Game**, then choose a name and **Man** or **Woman**.
+Open the address Vite prints (usually http://localhost:5173), choose a username and a look on the welcome screen, then **Single player** and a save slot. See [the title screen](docs/wiki/Title-and-Profiles.md).
 
 Other commands:
 
@@ -99,6 +99,7 @@ The wiki pages live in [`docs/wiki`](docs/wiki/Home.md):
 - [Survival and utilities](docs/wiki/Survival-and-Utilities.md)
 - [Weather and seasons](docs/wiki/Weather-and-Seasons.md)
 - [Clothing and character](docs/wiki/Clothing-and-Character.md)
+- [The title screen, profiles and save slots](docs/wiki/Title-and-Profiles.md)
 - [Upkeep and repairs](docs/wiki/Upkeep-and-Repairs.md)
 - [Base Architect](docs/wiki/Base-Architect.md)
 - [Camera and views](docs/wiki/Camera-and-Views.md)
@@ -111,7 +112,7 @@ The requirements, design and task list are in [`.kiro/specs/zombie-base-survival
 
 ## Saves
 
-The game saves to your browser (IndexedDB) about once a minute, after important actions, and when you leave the tab.
+The game saves to your browser (IndexedDB) about once a minute, after important actions, and when you leave the tab. There are three save slots.
 Use **Save & exit to title** in the menu to leave cleanly. Saves stay on your computer. Cloud saves are planned.
 
 ## Credits
