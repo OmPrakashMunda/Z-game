@@ -108,7 +108,8 @@ load without a bump. When the shape really changes, bump the version and fill th
   within 5 m, your land within 6 m, or ``outside``. The rest of the rules keep reading ``state.at``.
 - ``world/collide.ts`` gives the solid boxes near a point (town buildings and props, houses, tree trunks that have not been
   cleared). Walking and driving both use it.
-- ``state.vehicles`` are the owned vehicles and ``state.driving`` the one being driven. ``driveStep`` in ``sim/vehicles.ts``
+- New vehicles are placed by `findDrivableSpot` and `parkingSpot` in `sim/vehicles.ts`, which test the whole body (`bodyFits`) and a clear strip to leave along. The headlights are in `render/vehicles.ts` (`setLights`: lamps and a beam on the road) plus one real point light in `render/scene.ts` (`updateLights`).
+- `state.vehicles` are the owned vehicles and ``state.driving`` the one being driven. ``driveStep`` in ``sim/vehicles.ts``
   moves it; the player's position follows.
 - ``state.pack`` is the backpack and ``state.looted`` the searched houses. A search in progress is a runtime note, not saved.
 

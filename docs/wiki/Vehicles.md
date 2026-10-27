@@ -3,6 +3,11 @@
 Seven vehicles are for sale at **Rusty Wheels Autos** and in the online store. A vehicle you buy at the dealership is
 parked outside it. One you order online is parked beside your land. Either way a waypoint marks it.
 
+A new vehicle is always put where it can be driven away: its whole body is clear of walls, trees, houses and your structures
+with room to spare, no other vehicle is in the way, and there is a clear strip to drive out along. If the first choice is
+taken or blocked, the game looks for the nearest spot that works (and turns the vehicle if that helps). The same goes for
+the GIVECAR and CALLCAR cheats.
+
 | Vehicle | Price | Fuel | Tank | Range | Top speed | Durability | Cargo | Seats | Noise | Off-road | Tows |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Bicycle | $350 | none | - | unlimited | 25 km/h | 60 | 12 kg | 1 | silent | 85% | no |
@@ -36,6 +41,8 @@ ahead of it.
 - **Crashes.** Hitting a house, a tree or a prop at speed does damage in proportion to the speed squared. Scraping along a
   wall does a little. Under 30% condition the top speed drops. At zero, it will not run.
 - **Parked cars.** Vehicles stay where you leave them and are saved with the game.
+- **Headlights.** The vehicle you drive switches its headlights on when it gets dark, and by day in heavy rain or snow. The
+  lamps glow, a beam lights the road ahead and the trees and walls near it. Parked vehicles have their lights off.
 
 ## Looking after a vehicle
 

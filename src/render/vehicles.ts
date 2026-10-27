@@ -3,7 +3,7 @@ import { VEHICLES, type VehicleDef } from '../data/vehicles';
 import type { OwnedVehicle } from '../sim/vehicles';
 import { mergeStatic } from './merge';
 import { addBox, addCyl, mat } from './models';
-import { headlightMat, taillightMat } from './traffic';
+import { beamMat as trafficBeamMat, headlightMat, taillightMat } from './traffic';
 
 /** Drawing of the vehicles the player owns: bodies, fitted parts, spinning wheels and the trailer. */
 
@@ -164,8 +164,17 @@ function makeTrailer(): Rig {
   return { group: g, wheels: spinners.map((w) => pivot(g, w)), radius: 0.4 };
 }
 
+/** The glow a headlight throws on the road ahead. Its look is shared with the traffic; its strength is set here. */
+const beamGeometry = new THREE.PlaneGeometry(4.4, 12);
+const beamMaterial = new THREE.MeshBasicMaterial({
+  map: trafficBeamMat.map, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false,
+});
+
 interface View {
   rig: Rig;
+  head: THREE.MeshStandardMaterial;
+  tail: THREE.MeshStandardMaterial;
+  beam: THREE.Mesh;
   key: string;
   trailer: Rig | null;
   root: THREE.Group;
@@ -194,6 +203,28 @@ export class VehicleLayer {
     return [...this.views.values()].map((v) => v.root);
   }
 
+  /**
+   * Switch the headlights of the vehicle being driven. dark is 0 in bright daylight and 1 at night; the lamps and the glow
+   * on the road come on as it gets dark, or when heavy weather darkens the day.
+   */
+  setLights(drivenId: number | null, dark: number): void {
+    beamMaterial.opacity = Math.min(1, dark * 1.3) * 0.65;
+    for (const [id, view] of this.views) {
+      const on = id === drivenId && dark > 0.15;
+      view.beam.visible = on && view.root.visible;
+      view.head.emissiveIntensity = on ? 2.6 : 0;
+      view.tail.emissiveIntensity = on ? 1.4 : 0.2;
+    }
+  }
+
+  /** Where the headlights of a vehicle shine, a few meters ahead of it: for the real light that goes with them. */
+  headlightSpot(id: number, ahead = 6): { x: number; z: number } | null {
+    const view = this.views.get(id);
+    if (!view) return null;
+    const g = view.rig.group;
+    return { x: g.position.x + Math.sin(g.rotation.y) * ahead, z: g.position.z + Math.cos(g.rotation.y) * ahead };
+  }
+
   /** Create, move and remove the vehicle models to match the game. */
   sync(vehicles: readonly OwnedVehicle[], near: { x: number; z: number }): void {
     const seen = new Set<number>();
@@ -209,7 +240,24 @@ export class VehicleLayer {
         root.add(rig.group);
         root.userData.pick = { type: 'vehicle', id: v.id };
         this.root.add(root);
-        view = { rig, key, trailer: null, root, roll: 0, lastX: v.x, lastZ: v.z, trailerRoll: 0, tx: 0, tz: 0 };
+        // Each vehicle has its own lamps, so only the one being driven shines
+        const head = headlightMat.clone();
+        const tail = taillightMat.clone();
+        head.emissiveIntensity = 0;
+        rig.group.traverse((o) => {
+          const m = o as THREE.Mesh;
+          if (!m.isMesh) return;
+          if (m.material === headlightMat) m.material = head;
+          else if (m.material === taillightMat) m.material = tail;
+        });
+        const beam = new THREE.Mesh(beamGeometry, beamMaterial);
+        beam.rotation.x = -Math.PI / 2; // lies flat; the bright end of the texture is nearest the vehicle
+        beam.position.set(0, 0.13, def.length / 2 + 5.6);
+        beam.scale.x = def.width < 1 ? 0.5 : 1;
+        beam.visible = false;
+        beam.raycast = () => {}; // a light is not something to click on
+        rig.group.add(beam);
+        view = { rig, head, tail, beam, key, trailer: null, root, roll: 0, lastX: v.x, lastZ: v.z, trailerRoll: 0, tx: 0, tz: 0 };
         this.views.set(v.id, view);
       }
       const visible = Math.hypot(v.x - near.x, v.z - near.z) < DRAW_DISTANCE;

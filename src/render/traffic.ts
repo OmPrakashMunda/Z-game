@@ -99,7 +99,7 @@ function makeGlowTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-const beamMat = new THREE.MeshBasicMaterial({
+export const beamMat = new THREE.MeshBasicMaterial({
   map: makeGlowTexture(), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false,
 });
 const beamGeo = new THREE.PlaneGeometry(3.2, 8);

@@ -1871,6 +1871,7 @@ function frame(now: number): void {
     const unread = state.messages.filter((m) => m.id > seenMsgId && m.kind !== 'order').length;
     const wx = currentWeather(state);
     showWeather(state);
+    gfx.setDriving(state.driving);
     gfx.render(screen === 'play' ? renderDt : 0, visualSeconds(state));
     ui.setPrompt(promptFor(state));
     const searching = activeSearch(state);

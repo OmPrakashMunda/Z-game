@@ -34,13 +34,13 @@ export interface MapPoint {
   z: number;
 }
 
-/** Something that gives light at night: a lamp post, a floodlight tower or a fire pit. */
+/** Something that gives light at night: a lamp post, a floodlight tower, a fire pit or the headlights of the vehicle being driven. */
 export interface LightSource {
   x: number;
   z: number;
   /** Height of the lamp above the ground. */
   y: number;
-  kind: 'lamp' | 'flood' | 'fire';
+  kind: 'lamp' | 'flood' | 'fire' | 'head';
 }
 
 /** How the three kinds of light look: the colour, how far the real light reaches, how strong it is, and the pool it paints on the ground. */
@@ -48,6 +48,7 @@ const LIGHT_LOOK = {
   lamp: { color: 0xffd9a0, reach: 18, power: 110, pool: 15, glow: 0.6 },
   flood: { color: 0xfff1d6, reach: 42, power: 520, pool: 38, glow: 0.7 },
   fire: { color: 0xff8a3a, reach: 14, power: 70, pool: 12, glow: 0.55 },
+  head: { color: 0xfff0cf, reach: 22, power: 45, pool: 0, glow: 0 },
 } as const;
 /** Real lights are costly, so only this many (the ones nearest the camera) are switched on at a time. */
 const REAL_LIGHTS = 6;
@@ -248,6 +249,8 @@ export class GameRenderer {
     map: makeGlowTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0,
   });
   private night = 0;
+  /** The vehicle being driven, if any: its headlights are on when it is dark. */
+  private drivenId: number | null = null;
   private lightClock = 0;
   private weatherFx: WeatherFx | null = null;
   private yearPhase = 0.4;
@@ -557,17 +560,28 @@ export class GameRenderer {
     return { sources: this.baseLights.length, real: this.pointLights.filter((l) => l.intensity > 0.01).length, pools: this.lightPools.count };
   }
 
+  /** Tell the renderer which vehicle the player is driving. */
+  setDriving(id: number | null): void {
+    this.drivenId = id;
+  }
+
   /** Light the nearest working lights for real, and fade the ground glow in with the dark. */
   private updateLights(realDt: number): void {
     this.lightPoolMat.opacity = Math.min(1, this.night * 1.2) * (1 - 0.15 * this.atmosphere.rain);
     this.lightClock += realDt;
     const t = this.target;
+    // Headlights come on in the dark, and in heavy weather by day
+    const dark = Math.max(this.night, this.atmosphere.gloom * 0.55);
+    this.vehicleLayer?.setLights(this.drivenId, dark);
     const all = [...this.baseLights, ...this.townLights];
     all.sort((a, b) => (a.x - t.x) ** 2 + (a.z - t.z) ** 2 - ((b.x - t.x) ** 2 + (b.z - t.z) ** 2));
+    const spot = this.drivenId !== null && dark > 0.15 ? this.vehicleLayer?.headlightSpot(this.drivenId) : null;
+    if (spot) all.unshift({ x: spot.x, z: spot.z, y: 3.6, kind: 'head' });
     for (let i = 0; i < this.pointLights.length; i++) {
       const light = this.pointLights[i];
       const src = all[i];
-      if (!src || this.night < 0.05) {
+      const level = src?.kind === 'head' ? dark : this.night;
+      if (!src || level < 0.05) {
         light.intensity = 0;
         continue;
       }
@@ -577,7 +591,7 @@ export class GameRenderer {
       light.position.set(src.x, src.y, src.z);
       light.color.setHex(look.color);
       light.distance = look.reach;
-      light.intensity = look.power * Math.min(1, this.night * 1.2) * flicker;
+      light.intensity = look.power * Math.min(1, level * 1.2) * flicker;
     }
   }
 

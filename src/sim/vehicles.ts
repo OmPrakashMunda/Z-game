@@ -1,11 +1,13 @@
-import { city, distanceToPath, inRect, locationById, WORLD_HALF } from '../data/city';
+import { city, distanceToPath, inRect, locationById, WORLD_HALF, type Rect } from '../data/city';
 import { itemById } from '../data/items';
 import { STORES } from '../data/stores';
 import {
   ATTACHMENTS, effective, PARTS_HP, SPARE_PARTS_ITEM, VEHICLES, type AttachmentId, type FuelKind, type VehicleDef, type VehicleId,
 } from '../data/vehicles';
-import { blockedAt } from '../world/collide';
+import { blockedAt, setBaseSolids } from '../world/collide';
 import { nearRoad } from '../world/gen';
+import { baseColliders } from './colliders';
+import { ownedRect, plotOf } from './land';
 import { runtimeOf } from './utilities';
 import type { GameState } from './state';
 
@@ -94,33 +96,104 @@ export function topSpeedOn(v: OwnedVehicle, surface: Surface): number {
 
 // ---------------------------------------------------------------- Buying and parking
 
-let nextHeading = 0;
+/** How big a vehicle's body is on the ground, in meters. */
+export interface BodySize {
+  width: number;
+  length: number;
+}
 
-/** Parking spots in front of Rusty Wheels Autos, and beside the player's land. */
-export function parkingSpot(state: GameState, where: 'dealer' | 'base', width: number): { x: number; z: number; heading: number } {
-  const taken = (x: number, z: number) => state.vehicles.some((v) => Math.hypot(v.x - x, v.z - z) < 4.6);
+const PARK_EDGE = WORLD_HALF - 30;
+
+/** Whether a body of this size can stand at (x, z) facing `heading` with `margin` meters to spare on every side. */
+export function bodyFits(size: BodySize, x: number, z: number, heading: number, margin = 0.6): boolean {
+  if (Math.abs(x) > PARK_EDGE || Math.abs(z) > PARK_EDGE) return false;
+  const r = size.width * 0.5 + margin;
+  const reach = Math.max(0, size.length / 2 - size.width * 0.5);
+  const n = Math.max(1, Math.ceil(reach / (r * 0.8)));
+  const sx = Math.sin(heading);
+  const sz = Math.cos(heading);
+  for (let k = -n; k <= n; k++) if (blockedAt(x + (sx * reach * k) / n, z + (sz * reach * k) / n, r)) return false;
+  return true;
+}
+
+/** Whether a vehicle parked here could drive away: a clear strip ahead of it, or behind it. */
+function canLeave(size: BodySize, x: number, z: number, heading: number): boolean {
+  const sx = Math.sin(heading);
+  const sz = Math.cos(heading);
+  const lead = size.length / 2 + 2;
+  for (const dir of [1, -1]) {
+    let clear = true;
+    for (const d of [lead, lead + 4, lead + 8]) {
+      if (!bodyFits(size, x + sx * d * dir, z + sz * d * dir, heading, 0.25)) {
+        clear = false;
+        break;
+      }
+    }
+    if (clear) return true;
+  }
+  return false;
+}
+
+/** Whether another vehicle already stands too close to a spot. */
+function crowded(state: GameState, size: BodySize, x: number, z: number, except?: number): boolean {
+  return state.vehicles.some((v) => v.id !== except && Math.hypot(v.x - x, v.z - z) < Math.max(4.6, (size.length + vehicleDef(v).length) / 2 + 1));
+}
+
+/**
+ * The nearest place to `want` where a vehicle can stand and drive off: all of its body is clear of walls, trees, houses and
+ * your structures with room to spare, nothing else is parked there, and there is a clear strip to drive out along. It tries
+ * the wanted heading first, then turned a quarter and a half turn. If the land is crowded it settles for tighter spots.
+ */
+export function findDrivableSpot(
+  state: GameState,
+  size: BodySize,
+  want: { x: number; z: number; heading: number },
+  opts: { avoid?: Rect; except?: number } = {},
+): { x: number; z: number; heading: number } {
+  setBaseSolids(baseColliders(state));
+  const headings = [want.heading, want.heading + Math.PI / 2, want.heading - Math.PI / 2, want.heading + Math.PI];
+  const a = opts.avoid;
+  const onLand = (x: number, z: number) => !!a && Math.abs(x - a.x) < a.w / 2 + 1 && Math.abs(z - a.z) < a.d / 2 + 1;
+  const passes: Array<{ margin: number; leave: boolean }> = [
+    { margin: 0.7, leave: true },
+    { margin: 0.35, leave: true },
+    { margin: 0.2, leave: false },
+  ];
+  for (const pass of passes) {
+    for (let ring = 0; ring <= 30; ring++) {
+      const steps = ring === 0 ? 1 : Math.min(32, ring * 5);
+      for (let i = 0; i < steps; i++) {
+        const ang = (i / steps) * Math.PI * 2;
+        const x = want.x + Math.cos(ang) * ring * 2;
+        const z = want.z + Math.sin(ang) * ring * 2;
+        if (onLand(x, z) || crowded(state, size, x, z, opts.except)) continue;
+        for (const h of headings) {
+          if (bodyFits(size, x, z, h, pass.margin) && (!pass.leave || canLeave(size, x, z, h))) return { x, z, heading: h };
+        }
+      }
+    }
+  }
+  return { ...want };
+}
+
+/** Where a new vehicle is parked: in front of Rusty Wheels Autos, or beside the player's land. It can always be driven away. */
+export function parkingSpot(state: GameState, where: 'dealer' | 'base', size: number | BodySize): { x: number; z: number; heading: number } {
+  const body: BodySize = typeof size === 'number' ? { width: size, length: size * 2.2 } : size;
+  setBaseSolids(baseColliders(state));
   if (where === 'dealer') {
     const door = locationById('vehicle_dealer').entry;
+    // Neat rows in front of the shop first
     for (let i = 0; i < 24; i++) {
       const x = door.x - 24 + (i % 8) * 6.2;
       const z = door.z + 11 + Math.floor(i / 8) * 7;
-      if (!taken(x, z) && !blockedAt(x, z, width)) return { x, z, heading: Math.PI };
+      if (!crowded(state, body, x, z) && bodyFits(body, x, z, Math.PI, 0.7) && canLeave(body, x, z, Math.PI)) return { x, z, heading: Math.PI };
     }
-    return { x: door.x, z: door.z + 40, heading: Math.PI };
+    return findDrivableSpot(state, body, { x: door.x, z: door.z + 30, heading: Math.PI });
   }
-  const plot = city.plots.find((p) => p.id === state.plotId);
-  const land = plot ? plot.bounds : { x: 0, z: 0, w: 10, d: 10 };
-  // Beside the land: try each side until a free spot is found
-  for (let ring = 0; ring < 6; ring++) {
-    for (let i = 0; i < 8; i++) {
-      const x = land.x + land.w / 2 + 6 + ring * 5.5;
-      const z = land.z - land.d / 2 + 3 + i * 5;
-      if (!taken(x, z) && !blockedAt(x, z, width)) return { x, z, heading: nextHeading++ % 2 ? Math.PI / 2 : Math.PI };
-    }
-  }
-  return { x: land.x + land.w / 2 + 8, z: land.z, heading: Math.PI / 2 };
+  const plot = plotOf(state);
+  const land = plot ? ownedRect(plot, state.expansion) : { x: 0, z: 0, w: 10, d: 10 };
+  return findDrivableSpot(state, body, { x: land.x + land.w / 2 + 7, z: land.z, heading: Math.PI / 2 }, { avoid: land });
 }
-
 /** Put a new vehicle on the map, fully fuelled and in perfect shape. */
 export function addVehicle(state: GameState, id: VehicleId, at: { x: number; z: number; heading: number }): OwnedVehicle {
   const def = VEHICLES[id];
@@ -449,7 +522,7 @@ export function deliverVehicles(state: GameState, from: 'dealer' | 'base'): Owne
   for (const def of Object.values(VEHICLES)) {
     const n = state.storage[def.item] ?? 0;
     if (n < 1) continue;
-    for (let i = 0; i < n; i++) made.push(addVehicle(state, def.id, parkingSpot(state, from, def.width)));
+    for (let i = 0; i < n; i++) made.push(addVehicle(state, def.id, parkingSpot(state, from, def)));
     delete state.storage[def.item];
   }
   return made;

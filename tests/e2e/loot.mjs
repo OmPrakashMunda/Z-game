@@ -191,7 +191,7 @@ await page.waitForTimeout(300);
 const emptied = await G((id) => ({ cargo: window.__game.vehicles().find((v) => v.id === id).cargo, rice: window.__game.state.storage.rice }), car.id);
 check('unloading everything puts it all back in storage', Object.keys(emptied.cargo).length === 0 && emptied.rice >= 40, JSON.stringify(emptied));
 await G(() => window.__game.teleport(120, 40));
-await page.waitForTimeout(400);
+await page.waitForFunction(() => /Park at your base/.test(document.querySelector('.cargo-panel')?.textContent ?? ''), null, { timeout: 8000 }).catch(() => {});
 check('away from the base the panel says goods cannot be moved', /Park at your base/.test(await page.locator('.cargo-panel').innerText()));
 await page.keyboard.press('Escape');
 
