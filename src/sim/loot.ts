@@ -185,6 +185,35 @@ export function cancelSearch(state: GameState): void {
   slot(state).current = null;
 }
 
+/** A search stops if the player walks off from the door or gets into a vehicle. Returns true if it was stopped. */
+export function stopSearchIfLeft(state: GameState, walkSpeed: number): boolean {
+  const sr = slot(state).current;
+  if (!sr) return false;
+  const h = houseById(sr.houseId);
+  const door = h ? doorOf(h) : null;
+  const gone = !door || Math.hypot(door.x - state.pos.x, door.z - state.pos.z) > DOOR_REACH + 1.5;
+  if (!gone && walkSpeed <= 0.3 && state.driving === null) return false;
+  slot(state).current = null;
+  return true;
+}
+
+/** A player's search in progress and their results not yet shown. Kept apart so each player in a shared world has their own. */
+export type SearchSlot = Searching;
+
+/** The search slot now on the state. The rules change it in place, so a player's slot stays the same object. */
+export function getSearchSlot(state: GameState): SearchSlot {
+  return slot(state);
+}
+
+/** Put a player's search slot on the state. */
+export function setSearchSlot(state: GameState, next: SearchSlot): void {
+  searching.set(state, next);
+}
+
+export function emptySearchSlot(): SearchSlot {
+  return { current: null, results: [] };
+}
+
 /** Let search time pass. Finishing a search turns the house's goods into things you carry. */
 export function stepSearch(state: GameState, worldDt: number): void {
   const s = slot(state);

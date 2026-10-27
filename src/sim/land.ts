@@ -25,6 +25,12 @@ export function ownedRect(plot: PlotDef, exp: Expansion): Rect {
   return { x: (x0 + x1) / 2, z: (z0 + z1) / 2, w: x1 - x0, d: z1 - z0 };
 }
 
+/** The land the player owns, as a rectangle on the map, or undefined before a plot is bought. */
+export function landOf(state: Pick<GameState, 'plotId' | 'expansion'>): Rect | undefined {
+  const plot = plotOf(state);
+  return plot ? ownedRect(plot, state.expansion) : undefined;
+}
+
 /** The new ground you would get from one more expansion on a side. */
 export function stripFor(plot: PlotDef, exp: Expansion, side: Side): Rect {
   const r = ownedRect(plot, exp);

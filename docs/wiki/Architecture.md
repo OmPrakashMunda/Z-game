@@ -28,6 +28,8 @@ src/
   sim/               The game rules. Pure functions on a plain-object GameState; no DOM, no Three.js
     state.ts           GameState and the save version
     commands.ts        Every player action as a plain-data command, and applyCommand to run it (see Multiplayer design)
+    movement.ts        Walking, driving in short steps, working out where the player is, unloading at the base
+    players.ts         A shared world of up to four players: per-player records, withPlayer, runCommand, stepWorld
     clock.ts           Day, hour, daylight
     step.ts            One simulation step: restock, build, wear, survive, deliver, outbreak
     economy.ts         Prices, panic, stock, orders, returns, sandbox funds

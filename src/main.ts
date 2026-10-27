@@ -7,7 +7,7 @@ import './style.css';
 import { GameAudio, type SoundEnv } from './audio/audio';
 import { config, setTimeScale } from './config';
 import { balance } from './data/balance';
-import { city, locationById, WORLD_HALF, type LocationId, type PlotId } from './data/city';
+import { city, locationById, type LocationId, type PlotId } from './data/city';
 import { isStore, ONLINE_STORE_ID, type StoreId } from './data/stores';
 import { itemById } from './data/items';
 import { CELL, edgeLength, footprint, isEdgeStructure, isLineStructure, isStructure, STRUCTURES, STRUCTURE_LIST } from './data/structures';
@@ -30,7 +30,8 @@ import {
   edgeAnchor, edgePieceNear, edgePostFlags, gridOf, linksAt, occupiedCells, pieceAt, pieceCenter, placePiece, placementProblem,
   type Grid,
 } from './sim/build';
-import { ownedRect, plotOf, stripFor, type Side } from './sim/land';
+import { landOf, ownedRect, plotOf, stripFor, type Side } from './sim/land';
+import { driveFor, RUN_SPEED, settlePlace, walkStep, WALK_SPEED } from './sim/movement';
 import { grantFunds, SANDBOX_FUNDS, type Cart } from './sim/economy';
 import { buildPlan, planBase } from './sim/architect';
 import { activeCheats, resetCheatSession, runCheatCode, type WeatherMode } from './cheats';
@@ -45,7 +46,7 @@ import type { IssueKind } from './data/survival';
 import { distanceTo, locate, placePoint } from './sim/places';
 import { moveWalker, setBaseSolids } from './world/collide';
 import { baseColliders } from './sim/colliders';
-import { AREA_NAMES, areaAt, houseById } from './world/gen';
+import { AREA_NAMES, areaAt } from './world/gen';
 import { Minimap } from './ui/minimap';
 import { Dashboard } from './ui/dashboard';
 import { CharacterPanel } from './ui/character-panel';
@@ -54,8 +55,8 @@ import { exposureNow, lightningStrike } from './sim/exposure';
 import { takeOff as takeOffItem, wear as wearItem } from './sim/outfit';
 import type { Slot } from './data/clothing';
 import { CargoPanel } from './ui/cargo-panel';
-import { describeGoods, loadWeight, packWeight, unloadPack } from './sim/cargo';
-import { activeSearch, DOOR_REACH, doorOf, houseAtDoor, houseState, takeSearchResults } from './sim/loot';
+import { describeGoods, loadWeight, packWeight } from './sim/cargo';
+import { activeSearch, houseAtDoor, houseState, stopSearchIfLeft, takeSearchResults } from './sim/loot';
 import { PACK_KG } from './data/weights';
 import { ATTACHMENT_LIST, effective, VEHICLES, type VehicleId } from './data/vehicles';
 import {
@@ -87,9 +88,6 @@ let toastedMsgId = 0;
 
 /** Where the player is heading, set from the map. Cleared when they get there. */
 let waypoint: { x: number; z: number; name: string } | null = null;
-/** Walking and running speed in meters per real second. */
-const WALK_SPEED = 4.6;
-const RUN_SPEED = 8;
 /** How fast the player moved over the last frame, for the walking animation. */
 let walkSpeed = 0;
 interface BuildMode {
@@ -822,14 +820,12 @@ function waypointText(): string | null {
 /** Work out where the player is from where they stand, and react when that changes. */
 function updatePlace(): void {
   if (!state) return;
-  const at = locate(state.pos, landOf(state) ?? null);
-  if (at === 'base' && state.driving === null && Object.keys(state.pack).length > 0) {
-    const kg = unloadPack(state);
-    ui.toast(`You unloaded ${Math.round(kg)} kg of supplies into your storage.`, 'info');
+  const { at, changed, unloadedKg } = settlePlace(state);
+  if (unloadedKg > 0) {
+    ui.toast(`You unloaded ${Math.round(unloadedKg)} kg of supplies into your storage.`, 'info');
     schedulePersist();
   }
-  if (at === state.at) return;
-  state.at = at;
+  if (!changed) return;
   // Walking away from a shop closes it
   if (modalOpen() && !(shop.isOpen && shop.currentStore === ONLINE_STORE_ID)) {
     shop.close();
@@ -870,13 +866,6 @@ function teleportTo(place: PlaceId): void {
   if (p) teleport(p.x, p.z);
 }
 
-/** Turn an angle toward another by the shorter way. */
-function turnToward(from: number, to: number, amount: number): number {
-  const full = Math.PI * 2;
-  const diff = ((((to - from) % full) + full + Math.PI) % full) - Math.PI;
-  return from + diff * Math.min(1, amount);
-}
-
 /** Walk with the movement keys. The view's up is the way forward, so the keys always feel the same however the view is turned. */
 function updateWalk(dt: number): void {
   if (!state || dt <= 0) return;
@@ -885,20 +874,8 @@ function updateWalk(dt: number): void {
   walkSpeed = 0;
   if (free && (k.x !== 0 || k.y !== 0)) {
     const axes = gfx.groundAxes;
-    let dx = axes.right.x * k.x + axes.up.x * k.y;
-    let dz = axes.right.z * k.x + axes.up.z * k.y;
-    const len = Math.hypot(dx, dz) || 1;
-    dx /= len;
-    dz /= len;
-    const cheat = runtimeOf(state).cheats;
-    const v = (input.sprint() ? RUN_SPEED : WALK_SPEED) * (cheat.fastFeet ? 3 : 1);
-    const next = cheat.noClip
-      ? { x: Math.max(-(WORLD_HALF - 30), Math.min(WORLD_HALF - 30, state.pos.x + dx * v * dt)), z: Math.max(-(WORLD_HALF - 30), Math.min(WORLD_HALF - 30, state.pos.z + dz * v * dt)) }
-      : moveWalker(state.pos, dx * v * dt, dz * v * dt, 0.45);
-    walkSpeed = Math.hypot(next.x - state.pos.x, next.z - state.pos.z) / dt;
-    state.pos.x = next.x;
-    state.pos.z = next.z;
-    state.pos.heading = turnToward(state.pos.heading, Math.atan2(dx, dz), dt * 14);
+    const dir = { x: axes.right.x * k.x + axes.up.x * k.y, z: axes.right.z * k.x + axes.up.z * k.y };
+    walkSpeed = walkStep(state, dir, input.sprint(), dt);
   }
   gfx.setPlayer(state.pos, state.pos.heading, walkSpeed);
   updatePlace();
@@ -985,16 +962,10 @@ function updateDrive(dt: number): void {
   const free = screen === 'play' && state.phase !== 'dead' && !modalOpen() && !cheats.isOpen;
   // W and S, the left stick's up and down, and the triggers all work the pedals
   const inp = { throttle: free ? Math.max(-1, Math.min(1, k.y + input.trigger())) : 0, steer: free ? k.x : 0, brake: free && input.sprint() };
-  let left = Math.min(dt, 0.1);
-  let damage = 0;
-  while (left > 1e-6) {
-    const step = Math.min(left, 0.04);
-    left -= step;
-    const r = driveStep(state, v, inp, step);
-    damage += r.damage;
-    if (r.ranDry) ui.toast(`The ${vehicleName(v).toLowerCase()} has run out of fuel. Click it to fill the tank from a fuel can, or at the pumps.`);
-    if (r.brokeDown) ui.toast(`The ${vehicleName(v).toLowerCase()} has broken down. Click it to mend it with spare parts.`);
-  }
+  const drove = driveFor(state, inp, dt);
+  if (drove?.ranDry) ui.toast(`The ${vehicleName(v).toLowerCase()} has run out of fuel. Click it to fill the tank from a fuel can, or at the pumps.`);
+  if (drove?.brokeDown) ui.toast(`The ${vehicleName(v).toLowerCase()} has broken down. Click it to mend it with spare parts.`);
+  const damage = drove?.damage ?? 0;
   if (damage > 5) {
     audio.error();
     input.pad.rumble(Math.min(1, damage / 25), 0.25);
@@ -1126,15 +1097,7 @@ function interactHouse(): boolean {
 /** A search stops if the player walks off or gets into a vehicle. */
 function watchSearch(): void {
   if (!state) return;
-  const sr = activeSearch(state);
-  if (!sr) return;
-  const h = houseById(sr.houseId);
-  const door = h ? doorOf(h) : null;
-  const gone = !door || Math.hypot(door.x - state.pos.x, door.z - state.pos.z) > DOOR_REACH + 1.5;
-  if (gone || walkSpeed > 0.3 || state.driving !== null) {
-    applyCommand(state, { type: 'cancelSearch' });
-    ui.toast('Search stopped.');
-  }
+  if (stopSearchIfLeft(state, walkSpeed)) ui.toast('Search stopped.');
 }
 
 function cargoMove(kind: 'load' | 'unload' | 'all', id: number, item: string, n: number): void {
@@ -1215,12 +1178,6 @@ function leaveBuilding(): void {
 }
 
 // ---------------------------------------------------------------- Land
-
-/** The land the player owns, as a rectangle on the map. */
-function landOf(s: GameState): ReturnType<typeof ownedRect> | undefined {
-  const plot = plotOf(s);
-  return plot ? ownedRect(plot, s.expansion) : undefined;
-}
 
 function handleExpand(side: Side): void {
   if (!state) return;

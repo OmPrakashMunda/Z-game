@@ -166,8 +166,8 @@ Each top-level task is a milestone that ends with something playable.
     - _Requirements: 19.1, 19.5_
   - [x] 5e.2 A headless Node smoke test (`npm run test:headless`)
     - _Requirements: 19.2_
-  - [ ] 5e.3 A per-player record and the view swap; move place, walking and driving rules from `main.ts` into `sim`; a vehicle `driver`
-    - _Requirements: 19.4_
+  - [x] 5e.3 A per-player record and the view swap (`sim/players.ts`); move place, walking and driving rules from `main.ts` into `sim/movement.ts`; one driver per vehicle; headless test `players.ts`
+    - _Requirements: 19.4, 19.6_
   - [ ] 5e.4 A Node server that owns the shared world and steps it; the protocol (commands, input frames, snapshots)
     - _Requirements: 19.3, 19.4_
   - [ ] 5e.5 A client mode that sends commands and input and draws other players; a Multiplayer entry in the title menu

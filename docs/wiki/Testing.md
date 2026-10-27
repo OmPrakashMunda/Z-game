@@ -6,7 +6,7 @@ that print `PASS` or `FAIL` per check.
 
 ## Headless test
 
-`npm run test:headless` runs `tests/headless/smoke.ts` with `tsx`. It starts a game, runs commands through `applyCommand`, steps the clock and round-trips the state through JSON, all in plain Node. It is quick, and it fails if a rule starts to need the browser. The server will depend on this.
+`npm run test:headless` runs `tests/headless/smoke.ts` and `tests/headless/players.ts` with `tsx`. The first starts a game, runs commands through `applyCommand`, steps the clock and round-trips the state through JSON. The second puts up to four players in one world and checks that they keep their own place, pack, clothes, vehicle and search while money and the clock are shared. All in plain Node. It is quick, and it fails if a rule starts to need the browser. The server will depend on this.
 
 ## Running
 

@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test:headless": "tsx tests/headless/smoke.ts"
+    "test:headless": "tsx tests/headless/smoke.ts && tsx tests/headless/players.ts"
   },
   "dependencies": {
     "@fontsource/barlow": "^5.3.0",
