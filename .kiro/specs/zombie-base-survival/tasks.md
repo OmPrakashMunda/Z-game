@@ -149,6 +149,18 @@ Each top-level task is a milestone that ends with something playable.
   - [x] 5c.6 Sign in with Google, unique usernames and cloud saves on Firebase, with guest play and local saves kept
     - _Requirements: 17.1-17.6_
 
+- [x] 5d. Gamepad and driving fixes
+  - [x] 5d.1 Read a standard gamepad (sticks, triggers, buttons, rumble) and map it onto the existing key actions
+    - _Requirements: 18.1, 18.3_
+  - [x] 5d.2 Move around menus with the stick and D-pad, A and B
+    - _Requirements: 18.2_
+  - [x] 5d.3 Set a wedged vehicle on clear ground when getting in; let an overlapping vehicle drive out
+    - _Requirements: 18.4_
+  - [x] 5d.4 Bring the view to the vehicle on getting in and keep it following
+    - _Requirements: 18.5_
+  - [x] 5d.5 Browser tests: gamepad.mjs with a fake controller, and new checks in vehicles.mjs
+    - _Requirements: 18.1-18.5_
+
 - [x] 6. M5: Survival and production
   - [x] 6.1 Implement thirst, hunger and health with the move-in supplies, daily use, and starvation (fatigue and sleeping left for later)
     - _Requirements: 8.1, 8.2, 8.3_

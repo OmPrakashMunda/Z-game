@@ -21,6 +21,8 @@ import { copyGuestGame, deleteGame, listGuestGames, listSlots, saveGame, setClou
 import { account, SignInCancelled, UsernameTakenError } from './account/account';
 import { blankProfile, loadProfile, saveProfile, type Profile } from './profile/profile';
 import { TitleScreen } from './ui/title';
+import { backButton, padMenuPress } from './ui/padnav';
+import type { PadButton } from './gamepad';
 import { SHIRT_COLORS, SKIN_TONES } from './data/looks';
 import { advise, type Advice, type AdviceAction } from './sim/advisor';
 import { dayOf, dayPart, formatClock, hourOf, worldSecondsAt } from './sim/clock';
@@ -597,6 +599,45 @@ input.onPress('KeyM', () => toggleSound());
 input.onPress('Space', () => screen === 'play' && interact());
 input.onPress('KeyF', () => screen === 'play' && setSpeed(speed > 1 ? 1 : 4));
 input.onPress('KeyV', () => screen === 'play' && !modalOpen() && (build ? stopPlacing() : drawer.toggle('storage')));
+
+// ---------------------------------------------------------------- Gamepad
+// The buttons do what the matching keys do (see gamepad.ts for the layout). In a menu the pad moves around it instead.
+
+/** The open menu or panel that the gamepad should move around in, or null while playing. */
+function padLayer(): HTMLElement | null {
+  const q = (selector: string) => uiEl.querySelector<HTMLElement>(selector);
+  if (titleUi.isOpen) return q('.title-screen');
+  if (ui.isOverlayOpen) return q('.overlay');
+  if (modalOpen()) return q('.modal-overlay');
+  if (drawer.isOpen) return q('.drawer');
+  if (architect.isOpen) return q('.architect');
+  if (cargoPanel.isOpen) return q('.cargo-panel');
+  return null;
+}
+
+const PAD_KEYS: Partial<Record<PadButton, string>> = { a: 'Space', b: 'Escape', start: 'Escape', x: 'KeyI', y: 'KeyB', select: 'KeyF' };
+
+input.pad.onPress = (button) => {
+  const layer = padLayer();
+  if (layer) {
+    if (padMenuPress(layer, button)) return;
+    if (button === 'b') {
+      const back = backButton(layer);
+      if (back) back.click();
+      else input.press('Escape');
+      return;
+    }
+  }
+  if (button === 'r3') {
+    if (screen === 'play') gfx.resetView();
+    return;
+  }
+  const code = PAD_KEYS[button];
+  if (code) input.press(code);
+};
+input.pad.onConnect = (name) => {
+  ui.toast(`Gamepad connected (${name.slice(0, 36)}). Left stick: move or steer. RT and LT: gas and brake. A: use. B: back. X: storage. Y: online store.`, 'info');
+};
 input.onPress('KeyR', () => {
   if (screen !== 'play' || modalOpen()) return;
   if (build) rotateBuild();
@@ -911,7 +952,10 @@ function startDriving(id: number): boolean {
   const v = drivenVehicle(state)!;
   walkSpeed = 0;
   gfx.setPlayer(state.pos, v.heading, 0, true);
-  ui.toast(`Driving the ${vehicleName(v).toLowerCase()}. W and S: gas and brake. A and D: steer. Shift: handbrake. Space: get out.`, 'info');
+  // Clicking the vehicle to get in leaves the view looking at it; from here on the view goes where the vehicle goes
+  gfx.followPlayer(true);
+  const wedged = result.moved ? 'It was wedged in, so it has been moved to clear ground. ' : '';
+  ui.toast(`${wedged}Driving the ${vehicleName(v).toLowerCase()}. W and S: gas and brake. A and D: steer. Shift: handbrake. Space: get out.`, 'info');
   return true;
 }
 
@@ -939,7 +983,8 @@ function updateDrive(dt: number): void {
   }
   const k = input.move();
   const free = screen === 'play' && state.phase !== 'dead' && !modalOpen() && !cheats.isOpen;
-  const inp = { throttle: free ? k.y : 0, steer: free ? k.x : 0, brake: free && input.sprint() };
+  // W and S, the left stick's up and down, and the triggers all work the pedals
+  const inp = { throttle: free ? Math.max(-1, Math.min(1, k.y + input.trigger())) : 0, steer: free ? k.x : 0, brake: free && input.sprint() };
   let left = Math.min(dt, 0.1);
   let damage = 0;
   while (left > 1e-6) {
@@ -950,9 +995,13 @@ function updateDrive(dt: number): void {
     if (r.ranDry) ui.toast(`The ${vehicleName(v).toLowerCase()} has run out of fuel. Click it to fill the tank from a fuel can, or at the pumps.`);
     if (r.brokeDown) ui.toast(`The ${vehicleName(v).toLowerCase()} has broken down. Click it to mend it with spare parts.`);
   }
-  if (damage > 5) audio.error();
+  if (damage > 5) {
+    audio.error();
+    input.pad.rumble(Math.min(1, damage / 25), 0.25);
+  }
   walkSpeed = 0;
-  gfx.setPlayer(state.pos, v.heading, 0, true);
+  // The speed lets the view catch up again if it was dragged away, as it does when walking
+  gfx.setPlayer(state.pos, v.heading, Math.abs(v.speed), true);
   updatePlace();
   const def = VEHICLES[v.type];
   const eff = effective(def, v.parts);
@@ -1979,6 +2028,10 @@ function frame(now: number): void {
     return;
   }
 
+  // Read the gamepad. In a menu its stick and D-pad move the highlight instead of the player
+  input.pad.menuMode = padLayer() !== null;
+  input.poll(renderDt);
+
   if (screen === 'play' && state) {
     // The world clock runs only here: tab visible, not on the title screen or in the pause menu.
     const realDt = Math.min((now - lastFrame) / 1000, balance.maxFrameDelta);
@@ -2002,6 +2055,7 @@ function frame(now: number): void {
     updateMovement(renderDt);
     gfx.keyTurn(input.rotation(), renderDt);
     gfx.keyTilt(input.tilt(), renderDt);
+    if (!input.pad.menuMode && input.zoom() !== 0) gfx.zoomBy(Math.exp(-input.zoom() * 1.3 * renderDt));
     if (expandPanel.isOpen) expandPanel.refresh();
     if (gfx.viewAngle !== lastCompass) {
       lastCompass = gfx.viewAngle;
@@ -2341,6 +2395,14 @@ if (import.meta.env.DEV) {
         flash: gfx.atmosphere.flash,
         lights: gfx.lightInfo(),
       };
+    },
+    /** What the keys and the gamepad are asking for right now (for testing). */
+    inputState() {
+      return { move: input.move(), sprint: input.sprint(), rotation: input.rotation(), tilt: input.tilt(), trigger: input.trigger(), zoom: input.zoom(), menuMode: input.pad.menuMode };
+    },
+    /** Let the view go, or make it follow the player again (for testing). */
+    followCamera(on: boolean) {
+      gfx.followPlayer(on);
     },
     /** The colours the walking character was given (for testing). */
     playerLook() {

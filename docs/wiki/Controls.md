@@ -54,3 +54,32 @@ corner map on the right.
 ## Top right
 A box says what `Space` would do right now, for example "Space  Roadside Motel" at a shop door or "Search the bungalow" at a house. It
 is only there when `Space` would do something.
+
+## Gamepad
+
+Plug in a controller (Xbox, PlayStation, Switch Pro and most others with the standard layout) and press a button: the game says
+"Gamepad connected". The keyboard and mouse keep working at the same time.
+
+| Control | Action |
+| --- | --- |
+| Left stick | Walk. While driving: steer (and up and down work the pedals) |
+| Right trigger | Gas |
+| Left trigger | Brake, and reverse |
+| Left stick press | Run. While driving: handbrake |
+| `A` | Use: go in at a shop door, get in or out of a vehicle, search a house (same as `Space`) |
+| `B` | Back: close what is open, then open the menu (same as `Esc`) |
+| `X` | Storage list (`I`) |
+| `Y` | Online store (`B`) |
+| `Start` | Menu (`Esc`) |
+| `Select` | Fast-forward on or off (`F`) |
+| `LB` / `RB` | Turn the view left / right (`Q` / `E`) |
+| Right stick | Left and right turn the view, up and down tilt it (`Z` / `C`) |
+| Right stick press | Reset the view |
+| D-pad up / down | Zoom in / out |
+
+**In a menu** (the title screens, the pause menu, shops, lists) the left stick and the D-pad move a highlight between the
+buttons, `A` presses the highlighted one, and `B` goes back. Sliders change with left and right. Typing a name still needs a
+keyboard.
+
+Placing structures and clicking things in the world still need the mouse. A controller that supports it shakes when a vehicle
+crashes.

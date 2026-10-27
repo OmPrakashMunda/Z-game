@@ -208,18 +208,31 @@ export function addVehicle(state: GameState, id: VehicleId, at: { x: number; z: 
 
 // ---------------------------------------------------------------- Getting in and out
 
-export function enterVehicle(state: GameState, id: number): { ok: true } | { ok: false; reason: string } {
+export function enterVehicle(state: GameState, id: number): { ok: true; moved?: boolean } | { ok: false; reason: string } {
   const v = vehicleById(state, id);
   if (!v) return { ok: false, reason: 'That vehicle is gone.' };
   if (state.driving !== null) return { ok: false, reason: 'You are already driving.' };
   if (state.phase === 'dead') return { ok: false, reason: 'You are dead.' };
   if (Math.hypot(v.x - state.pos.x, v.z - state.pos.z) > vehicleDef(v).length * 0.25 + 4) return { ok: false, reason: 'Walk up to it first.' };
+  // A vehicle wedged into a tree, a wall or a structure built over it is set down on the nearest clear ground, so it can be driven
+  let moved = false;
+  if (!runtimeOf(state).cheats.noClip) {
+    setBaseSolids(baseColliders(state));
+    if (overlap(v, v.x, v.z, v.heading) > 0) {
+      const spot = findDrivableSpot(state, vehicleDef(v), { x: v.x, z: v.z, heading: v.heading }, { except: v.id });
+      v.x = spot.x;
+      v.z = spot.z;
+      v.heading = spot.heading;
+      moved = true;
+    }
+  }
   state.driving = v.id;
   v.speed = 0;
   state.pos.x = v.x;
   state.pos.z = v.z;
   state.pos.heading = v.heading;
-  return { ok: true };
+  if (moved) moveTrailer(v);
+  return { ok: true, moved };
 }
 
 export function exitVehicle(state: GameState): { ok: true } | { ok: false; reason: string } {
@@ -277,6 +290,18 @@ function hits(v: OwnedVehicle, x: number, z: number, heading: number): boolean {
   return false;
 }
 
+/** How many of the three circles of the body (front, middle, back) are inside something solid: 0 means clear. */
+function overlap(v: OwnedVehicle, x: number, z: number, heading: number): number {
+  const def = vehicleDef(v);
+  const r = def.width * 0.45;
+  const reach = Math.max(0, def.length / 2 - r);
+  const sx = Math.sin(heading);
+  const sz = Math.cos(heading);
+  let n = 0;
+  for (const k of [-1, 0, 1]) if (blockedAt(x + sx * reach * k, z + sz * reach * k, r)) n++;
+  return n;
+}
+
 const EDGE = WORLD_HALF - 30;
 
 /** Move the driven vehicle forward by one step of real time. The player's position follows it. */
@@ -311,13 +336,17 @@ export function driveStep(state: GameState, v: OwnedVehicle, input: DriveInput, 
   const grip = Math.min(1, Math.abs(v.speed) / 3);
   const rate = (def.turn * input.steer * grip) / (1 + Math.abs(v.speed) / (def.topSpeed * 0.55));
   const turned = v.heading - rate * dt * Math.sign(v.speed || 1);
-  if (Math.abs(v.speed) > 0.05 && (cheats.noClip || !hits(v, v.x, v.z, turned))) v.heading = turned;
+  // A vehicle that starts inside something (a tree, a wall, a structure built on top of it) must be able to drive out of it.
+  // While it overlaps, a move is allowed if it does not push the body deeper in, and nothing counts as a crash.
+  const inside = cheats.noClip ? 0 : overlap(v, v.x, v.z, v.heading);
+  const notDeeper = (x: number, z: number, h: number) => inside > 0 && overlap(v, x, z, h) <= inside;
+  if (Math.abs(v.speed) > 0.05 && (cheats.noClip || notDeeper(v.x, v.z, turned) || !hits(v, v.x, v.z, turned))) v.heading = turned;
 
   // Move, sliding along walls where possible
   const dx = Math.sin(v.heading) * v.speed * dt;
   const dz = Math.cos(v.heading) * v.speed * dt;
   const before = Math.abs(v.speed);
-  const free = (x: number, z: number) => Math.abs(x) < EDGE && Math.abs(z) < EDGE && (cheats.noClip || !hits(v, x, z, v.heading));
+  const free = (x: number, z: number) => Math.abs(x) < EDGE && Math.abs(z) < EDGE && (cheats.noClip || notDeeper(x, z, v.heading) || !hits(v, x, z, v.heading));
   let moved = Math.hypot(dx, dz);
   if (free(v.x + dx, v.z + dz)) {
     v.x += dx;

@@ -715,3 +715,7 @@ input.qty::-webkit-inner-spin-button { display: none; }
 .slot-where { display: flex; align-items: center; gap: 6px; margin-top: 4px; font: 500 13px var(--font-ui); color: #8fd18f; }
 .slot-where.off { color: var(--dim); }
 .guest-list { margin: 10px 0 8px; padding-left: 20px; font-size: 16px; line-height: 1.7; }
+
+/* The button a gamepad has highlighted in a menu */
+.pad-focus { outline: 3px solid var(--amber); outline-offset: 3px; filter: brightness(1.2); }
+.menu-btn.pad-focus { transform: translateX(6px); }

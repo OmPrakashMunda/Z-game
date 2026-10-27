@@ -27,7 +27,8 @@ Besides the browser tests, always run `npm run build`, which typechecks and buil
 | `title` | 45 | The welcome screen and username, the main menu, profile, settings, the three save slots, the survivor screen, deleting, older saves | walking to shops, waypoints, buying a plot, saving and resuming |
 | `e2e` | 18 | Starting a game, the clock, walking to shops, waypoints, buying a plot, saving and resuming |
 | `world` | 34 | World size, houses and ids, chunk streaming, walking, collision, the edge, cleared land, building collision (fence, gate, house, path), the corner map, saving the position, old saves |
-| `vehicles` | 45 | The seven vehicles, buying, getting in and out, speed and surfaces, fuel, crashes, parts, repairs, a trailer, cheats, saving |
+| `gamepad` | 37 | A fake controller: menus with the D-pad and A and B, walking, the dead zone, running, turning and tilting the view, zoom, getting into a vehicle and driving with the triggers, the pause menu, lists and the store, and that the keyboard and unplugging still behave |
+| `vehicles` | 52 | The seven vehicles, buying, getting in and out, speed and surfaces, fuel, crashes, parts, repairs, a trailer, cheats, saving |
 | `loot` | 29 | Searching houses, loot that is the same every time, the backpack, leftovers, vehicles taking the load, the cargo panel, saving |
 | `build` | 23 | Online store, orders, the storage list, placing, dragging lines, refusals, crew build times, clicking a structure, take down, save and reload |
 | `models` | 7 | Finished models stand on the ground; blueprints are never squashed |
@@ -69,6 +70,7 @@ The counts are what passes today. If you add a check, update the number here.
 - Every test starts a game with `newGame(page)` from `tests/e2e/helpers.mjs`, which goes through the real title screens (the username on the first visit, **Single player**, slot 1, **New game**, **Start game**). `continueGame(page)` opens the game in slot 1 again.
 - Headless Chrome has no GPU, so two browser tests at once make each other slow. Walking and timing checks can then fail for no real reason; run those one at a time.
 - `run.ps1` sets `VITE_FIREBASE_DISABLED=1`, so the tests always run as a guest, whatever `.env.local` says. If you start the dev server yourself and run a script by hand, set the same variable (or move `.env.local` aside), or the `title` test will find the sign-in button switched on.
+- `gamepad.mjs` has no real controller to use, so it replaces `navigator.getGamepads()` with a fake one that it moves by hand, in the standard layout. A real controller at 60 frames a second is also read every frame, but headless Chrome draws only a few frames a second, so the test holds each button long enough to be seen.
 - `cloud.mjs` swaps Firebase for an in-memory stand-in (`useBackend`), so it tests the game's behaviour without Google. The security rules are checked against the real project instead: an unauthenticated request to `users/...`, `users/.../saves/...` or `usernames/...` (read or write) must get `403 PERMISSION_DENIED`.
 - Weather tests take over the sky with `setWeatherOverride` (or `setRain`) so the real weather does not change the result. `survivalOff(true)` also switches off weather damage.
 - Right after an edit, the dev server may reload the page under a running test. Do not edit while tests run.

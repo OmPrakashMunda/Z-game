@@ -73,7 +73,8 @@ gate, cabins, water, power, watch posts), tests it on a copy of your game and bu
 | `M` | Mute |
 | `` ` `` (backquote) | Cheat box |
 | `Esc` | Stop placing, close a card, open the menu |
-More in the [controls page](docs/wiki/Controls.md).
+A gamepad works too: left stick to walk or steer, right trigger for gas, `A` to use, `B` to go back, and the D-pad and `A`
+to move around menus. More in the [controls page](docs/wiki/Controls.md).
 
 ## Cheats
 

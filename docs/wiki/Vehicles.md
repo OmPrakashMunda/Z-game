@@ -41,6 +41,11 @@ ahead of it.
 - **Crashes.** Hitting a house, a tree or a prop at speed does damage in proportion to the speed squared. Scraping along a
   wall does a little. Under 30% condition the top speed drops. At zero, it will not run.
 - **Parked cars.** Vehicles stay where you leave them and are saved with the game.
+- **Wedged vehicles.** If a vehicle ends up inside a tree, a wall or a structure built over it, getting in sets it down on the
+  nearest clear ground (and says so), so it can always be driven. A vehicle that is somehow still overlapping something can drive
+  out of it without taking crash damage, but never deeper in.
+- **The view.** Getting in brings the view to the vehicle even if you had dragged it away, and it follows the vehicle from then on.
+- **Controller.** The right trigger is the gas, the left trigger the brake, and the left stick steers: see [Controls](Controls.md).
 - **Headlights.** The vehicle you drive switches its headlights on when it gets dark, and by day in heavy rain or snow. The
   lamps glow, a beam lights the road ahead and the trees and walls near it. Parked vehicles have their lights off.
 

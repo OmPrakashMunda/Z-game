@@ -239,6 +239,17 @@ This spec covers the first playable version (milestones M0–M7). Cloud saves, t
 5. The security rules SHALL let a signed-in account read and write only its own profile and three save slots, SHALL let it reserve usernames only for itself, and SHALL give a signed-out visitor no access.
 6. The Firebase settings SHALL be read from environment variables and SHALL NOT be committed. The tests SHALL run as a guest whatever those settings are.
 
+### Requirement 18: Gamepad and driving
+
+**User Story:** As a player, I want to play with a controller, and I want vehicles to be drivable wherever they are, so that nothing keeps me from the road.
+
+#### Acceptance Criteria
+1. The system SHALL accept a standard-layout gamepad alongside the keyboard and mouse: the left stick to walk or steer, the triggers for gas and brake, buttons for use, back, storage, the online store, the menu and fast-forward, the shoulder buttons and the right stick to turn and tilt the view, and the D-pad to zoom. Sticks SHALL have a dead zone.
+2. In any open menu (title screens, the pause menu, shops and lists) the stick and D-pad SHALL move a visible highlight between buttons, one button SHALL press the highlighted one and another SHALL go back. The stick SHALL NOT move the player while a menu is open.
+3. A gamepad button SHALL do what the matching key does. A controller that is unplugged SHALL do nothing, and the keyboard SHALL work whether or not one is plugged in.
+4. IF a vehicle is inside a tree, a wall or a structure when the player gets in, THEN the system SHALL set it down on the nearest clear ground and tell the player. A vehicle that still overlaps something SHALL be able to drive out of it without crash damage, and SHALL NOT be able to go deeper in.
+5. Getting into a vehicle SHALL bring the view to it, and the view SHALL follow the vehicle while it drives, even if the view had been dragged away.
+
 ### Requirement 13: Performance and robustness
 
 **User Story:** As a player, I want the game to run smoothly and fail gracefully.

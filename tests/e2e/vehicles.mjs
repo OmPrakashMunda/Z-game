@@ -290,6 +290,64 @@ r = await G(() => window.__game.drive(1, 0, 5));
 check('TOUGHCARS stops crash damage', r.v.hp === hpBefore, `(${r.v.hp} of ${hpBefore})`);
 await leave();
 
+// ---- The view goes with the vehicle, even if it was dragged away before getting in
+const nearCentre = async (label, slack) => {
+  const at = await G(() => { const p = window.__game.player(); return window.__game.project(p.x, p.z, 0); });
+  const off = Math.hypot(at.x - 640, at.y - 360);
+  check(label, off < slack, `(${Math.round(off)} px from the middle of the screen)`);
+};
+const camCar = await G(() => {
+  const g = window.__game;
+  const v = g.giveVehicle('sedan', 40);
+  g.setVehicle(v.id, { x: 0, z: 60, heading: 0, speed: 0 });
+  g.teleport(2.3, 60);
+  g.snapCamera(-250, 250);
+  g.settleCamera();
+  g.followCamera(false);
+  return v.id;
+});
+await page.waitForTimeout(400);
+await page.keyboard.press('Space');
+await page.waitForTimeout(2500);
+check('Space got in the vehicle', (await G(() => window.__game.state.driving)) === camCar);
+await nearCentre('getting in brings the view to the vehicle', 140);
+await G(() => { window.__game.snapCamera(-250, 250); window.__game.settleCamera(); window.__game.followCamera(false); });
+await page.keyboard.down('KeyW');
+await page.waitForTimeout(4000);
+await nearCentre('the view catches up while driving', 260);
+await page.keyboard.up('KeyW');
+await leave();
+// ---- A vehicle wedged into something can still be driven
+const wedge = await G(async () => {
+  const c = await import('/src/world/collide.ts');
+  const g = window.__game;
+  let spot = null;
+  for (let x = -80; x < 80 && !spot; x += 0.5) for (let z = -60; z < 60 && !spot; z += 0.5) {
+    if (c.blockedAt(x, z, 0.5) && !c.blockedAt(x, z + 5, 1.2) && !c.blockedAt(x, z + 9, 1.2)) spot = { x, z };
+  }
+  if (!spot) return null;
+  const v = g.giveVehicle('sedan', 45);
+  g.setVehicle(v.id, { x: spot.x, z: spot.z, heading: 0, speed: 0 });
+  g.teleport(spot.x + 3, spot.z);
+  return { id: v.id, spot, solidBefore: c.blockedAt(spot.x, spot.z, 0.855) };
+});
+check('found a place where a vehicle sits inside something solid', !!wedge && wedge.solidBefore);
+await page.waitForTimeout(300);
+await page.keyboard.press('Space');
+await page.waitForTimeout(800);
+check('you can still get in it', (await G(() => window.__game.state.driving)) === wedge.id);
+check('it says it was moved to clear ground', /wedged in/i.test(await page.locator('.toast').innerText().catch(() => '')));
+const wedgeAfter = await G(([id]) => {
+  const g = window.__game;
+  const v = g.vehicles().find((q) => q.id === id);
+  const a = { x: v.x, z: v.z };
+  const hp = v.hp;
+  g.drive(1, 0, 4);
+  const w = g.vehicles().find((q) => q.id === id);
+  return { moved: Math.hypot(w.x - a.x, w.z - a.z), hp: w.hp, hpBefore: hp, speed: w.speed };
+}, [wedge.id]);
+check('and it drives away without taking damage', wedgeAfter.moved > 5 && wedgeAfter.hp === wedgeAfter.hpBefore, JSON.stringify(wedgeAfter));
+await leave();
 // ---- Saving
 await G(() => window.__game.save());
 const saved = await G(() => window.__game.vehicles().map((q) => [q.type, Math.round(q.fuel * 10), q.parts.join(',')]));

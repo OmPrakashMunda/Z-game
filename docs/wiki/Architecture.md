@@ -8,7 +8,9 @@ src/
   cheats.ts          Cheat codes (session-only)
   cheats-move.ts     The movement cheats: teleports, GIVECAR, FASTFEET, NOCLIP and the rest
   config.ts          Reads VITE_TIME_SCALE
-  input.ts           Keyboard: held keys (walk, turn, tilt) and single presses
+  input.ts           Keyboard and gamepad: held keys and sticks (walk, turn, tilt), single presses
+  gamepad.ts         Reads a controller each frame: sticks, triggers, button presses, rumble. The buttons do what the matching keys do
+  ui/padnav.ts       Moving around a menu with a controller: highlight the nearest button, A to press, B for back
   style.css          The whole look of the UI
   data/              Plain tables: no logic that touches the game state
     balance.ts         Tunable numbers (money, days, crew size, prices)
