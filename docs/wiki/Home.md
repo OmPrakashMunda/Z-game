@@ -7,6 +7,7 @@ Day 30 the shops close and the outbreak begins.
 
 - [Getting started](Getting-Started.md): install, run, and your first ten minutes
 - [Title screen and profiles](Title-and-Profiles.md): username, character, save slots, the main menu
+- [Accounts and cloud saves](Accounts-and-Cloud-Saves.md): Google sign-in, unique usernames, games in the cloud, and the Firebase setup
 - [Controls](Controls.md): every key and mouse action
 - [Gameplay guide](Gameplay-Guide.md): the 30 days, what to do and in what order
 - [The world and walking](World-and-Walking.md): the big map, chunks, walking, waypoints

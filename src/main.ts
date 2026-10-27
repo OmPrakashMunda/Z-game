@@ -17,9 +17,9 @@ import { Input } from './input';
 import { GameRenderer, type LightSource, type MapPoint, type PickResult } from './render/scene';
 import { prewarmThumbnails, preloadThumbnails, thumbnailStats } from './render/thumbnails';
 import { headlightMat } from './render/traffic';
-import { deleteGame, listSlots, saveGame } from './save/store';
-import { account } from './account/account';
-import { blankProfile, loadProfile, saveProfile } from './profile/profile';
+import { copyGuestGame, deleteGame, listGuestGames, listSlots, saveGame, setCloud, setSaveScope } from './save/store';
+import { account, SignInCancelled, UsernameTakenError } from './account/account';
+import { blankProfile, loadProfile, saveProfile, type Profile } from './profile/profile';
 import { TitleScreen } from './ui/title';
 import { SHIRT_COLORS, SKIN_TONES } from './data/looks';
 import { advise, type Advice, type AdviceAction } from './sim/advisor';
@@ -145,6 +145,7 @@ const ui = new UI(uiEl, {
 });
 const titleUi = new TitleScreen(uiEl);
 let activeSlot = 1;
+let cloudWarned = false;
 const drawer = new Drawer(
   uiEl,
   (tab: DrawerTab | null) => {
@@ -257,8 +258,15 @@ async function persist(showToast = false): Promise<boolean> {
   if (!state || saving || state.phase === 'dead') return false;
   saving = true;
   try {
-    await saveGame(state, activeSlot);
-    if (showToast) ui.toast('Game saved', 'info');
+    const result = await saveGame(state, activeSlot);
+    if (result.cloud === 'failed') {
+      // Say so once, not on every save
+      if (!cloudWarned || showToast) ui.toast('Saved on this device. The cloud copy could not be updated.');
+      cloudWarned = true;
+    } else {
+      cloudWarned = false;
+      if (showToast) ui.toast(result.cloud === 'ok' ? 'Game saved to the cloud' : 'Game saved', 'info');
+    }
     return true;
   } catch (err) {
     console.error('Save failed', err);
@@ -307,14 +315,56 @@ function showTitle(): void {
   else showWelcome();
 }
 
+/** Make the saved games and the profile follow whoever is signed in (or the guest). */
+async function applyAccount(): Promise<'ok' | 'taken' | 'error'> {
+  const user = account.user();
+  if (user.kind !== 'google') {
+    setSaveScope(null);
+    setCloud(null);
+    return 'ok';
+  }
+  setSaveScope(user.id);
+  setCloud(account.cloudSlots());
+  try {
+    const remote = await account.loadProfile();
+    if (remote) {
+      saveProfile(remote);
+      return 'ok';
+    }
+    // A new account takes the name and look already chosen on this device
+    const local = loadProfile();
+    if (local) await account.saveProfile(local);
+    return 'ok';
+  } catch (err) {
+    if (err instanceof UsernameTakenError) return 'taken';
+    console.warn('Could not load the profile', err);
+    return 'error';
+  }
+}
+
+/** Keep the profile on this device and, when signed in, with the account. Gives a message if that did not work. */
+async function saveProfileEverywhere(next: Profile, previousUsername?: string): Promise<string | null> {
+  try {
+    await account.saveProfile(next, previousUsername);
+  } catch (err) {
+    return err instanceof UsernameTakenError
+      ? 'That username is taken by another player. Try a different one.'
+      : 'The cloud could not be reached. Check your connection and try again.';
+  }
+  saveProfile(next);
+  return null;
+}
+
 /** The first time in this browser: choose a username and a look. */
 function showWelcome(): void {
   const p = blankProfile();
   titleUi.showCharacter({
     mode: 'welcome', name: '', gender: p.gender, look: p.look,
-    onDone: (r) => {
-      saveProfile({ username: r.name, gender: r.gender, look: r.look });
+    onDone: async (r) => {
+      const problem = await saveProfileEverywhere({ username: r.name, gender: r.gender, look: r.look });
+      if (problem) return problem;
       showMainMenu();
+      return null;
     },
   });
 }
@@ -324,21 +374,72 @@ function showMainMenu(notice?: string): void {
   const user = account.user();
   titleUi.showMain({
     username: profile.username, gender: profile.gender, look: profile.look,
-    accountLabel: user.label, canSignIn: account.canSignIn, notice,
+    accountLabel: user.label, signedIn: user.kind === 'google', canSignIn: account.canSignIn, notice,
     onSingle: () => void showSlots(),
-    onProfile: showProfile,
+    onProfile: () => showProfile(),
     onSettings: showTitleSettings,
-    onSignIn: () => void account.signIn().catch((err) => showMainMenu(String(err instanceof Error ? err.message : err))),
+    onSignIn: () => void handleSignIn(),
+    onSignOut: () => void handleSignOut(),
   });
 }
 
-function showProfile(): void {
+async function handleSignIn(): Promise<void> {
+  try {
+    await account.signIn();
+  } catch (err) {
+    if (err instanceof SignInCancelled) return showMainMenu();
+    return showMainMenu(`Could not sign in: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  const outcome = await applyAccount();
+  if (outcome === 'taken') return showProfile('That username is taken by another player. Choose a different one to finish signing in.');
+  if (await offerGuestGames()) return;
+  showMainMenu(outcome === 'error' ? 'You are signed in, but your profile could not be loaded.' : undefined);
+}
+
+async function handleSignOut(): Promise<void> {
+  await account.signOut().catch((err) => console.warn('Sign-out failed', err));
+  await applyAccount();
+  showMainMenu();
+}
+
+/** After a first sign-in, offer to move the games played as a guest into the account. Returns whether the offer is on screen. */
+async function offerGuestGames(): Promise<boolean> {
+  const offerKey = `zgame.guestOffer.${account.user().id}`;
+  try {
+    if (localStorage.getItem(offerKey)) return false;
+  } catch {
+    return false;
+  }
+  const games = await listGuestGames();
+  if (games.length === 0) return false;
+  const finish = () => {
+    try {
+      localStorage.setItem(offerKey, '1');
+    } catch {
+      // The offer will simply be made again next time
+    }
+    showMainMenu();
+  };
+  titleUi.showGuestGames({
+    games: games.map((g) => ({ slot: g.slot, name: g.state.character.name, day: dayOf(g.state.worldSeconds) })),
+    onCopy: async () => {
+      for (const g of games) await copyGuestGame(g.slot).catch((err) => console.warn('Could not copy a guest game', err));
+      finish();
+    },
+    onSkip: finish,
+  });
+  return true;
+}
+
+function showProfile(error?: string): void {
   const profile = loadProfile() ?? blankProfile();
   titleUi.showCharacter({
-    mode: 'profile', name: profile.username, gender: profile.gender, look: profile.look,
-    onDone: (r) => {
-      saveProfile({ username: r.name, gender: r.gender, look: r.look });
+    mode: 'profile', name: profile.username, gender: profile.gender, look: profile.look, error,
+    onDone: async (r) => {
+      const problem = await saveProfileEverywhere({ username: r.name, gender: r.gender, look: r.look }, profile.username);
+      if (problem) return problem;
       showMainMenu();
+      return null;
     },
     onBack: () => showMainMenu(),
   });
@@ -357,11 +458,12 @@ async function showSlots(): Promise<void> {
   const slots = await listSlots();
   titleUi.showSlots({
     slots,
+    cloud: account.user().kind === 'google',
     onContinue: (slot, result) => beginGame(result.state, false, slot),
     onNew: (slot) => startSurvivor(slot),
     onDelete: (slot) => {
       void deleteGame(slot)
-        .catch((err) => ui.toast(`Could not delete that game: ${String(err)}`))
+        .catch((err) => ui.toast(`Could not delete that game: ${err instanceof Error ? err.message : String(err)}`))
         .then(() => showSlots());
     },
     onBack: () => showMainMenu(),
@@ -375,7 +477,9 @@ function startSurvivor(slot: number): void {
     mode: 'survivor', name: profile.username, gender: profile.gender, look: profile.look,
     onDone: (c) => {
       // The next new game starts with the same look
-      saveProfile({ username: profile.username, gender: c.gender, look: c.look });
+      const next = { username: profile.username, gender: c.gender, look: c.look };
+      saveProfile(next);
+      void account.saveProfile(next, next.username).catch((err) => console.warn('Could not update the cloud profile', err));
       beginGame(createNewGame(undefined, { name: c.name, gender: c.gender, look: c.look }), true, slot);
     },
     onBack: () => void showSlots(),
@@ -1996,7 +2100,23 @@ requestAnimationFrame((t) => {
   frame(t);
 });
 
-void showTitle();
+if (account.expectsSignIn()) {
+  // Someone was signed in last time: wait (briefly) for that to come back, so their games and profile show
+  void (async () => {
+    titleUi.showBusy('Signing you in...');
+    await account.ready();
+    await applyAccount();
+    showTitle();
+  })();
+} else {
+  // Nobody to wait for: show the title at once, and notice a sign-in that turns up anyway
+  showTitle();
+  void account.ready().then(async () => {
+    if (account.user().kind !== 'google') return;
+    await applyAccount();
+    if (screen === 'title' && titleUi.current === 'main') showMainMenu();
+  });
+}
 
 // Saved product pictures load straight away. Any that are missing are drawn later, when the browser is idle.
 void preloadThumbnails();

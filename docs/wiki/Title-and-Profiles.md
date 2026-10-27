@@ -22,8 +22,9 @@ The town sits behind the menu, with traffic and a slowly turning view.
 | **Profile** | Change your username and look. **Save** keeps the change, **Back** drops it. |
 | **Settings** | Sound on or off, and the volume. |
 
-At the top right, a card shows your username and that you are playing as a **Guest** (saves stay on this device). Next to it is
-**Sign in with Google**. It is shown but switched off (*Soon*) until cloud accounts are set up.
+At the top right, a card shows your username and that you are playing as a **Guest** (saves stay on this device), or as a
+**Google** account (saves go to the cloud). Next to it is **Sign in with Google**, or **Sign out** when you are signed in. If the
+game was built without Firebase settings, the button is greyed out and marked *Soon*.
 
 ## Save slots
 
@@ -46,11 +47,11 @@ and look are saved with the game and shown in the character panel in the game: s
 **Esc**, then **Save & exit to title**, saves to the slot and returns to the main menu. If you die, your last save is still in
 its slot: open it again from the slots screen.
 
-## Accounts, later
+## Accounts
 
-Sign-in with Google and cloud saves are planned. The title screen already asks one small interface (`src/account/account.ts`)
-who is playing and whether sign-in is available, so adding it changes that file and the save store, not the screens. See the
-[Roadmap](Roadmap.md).
+With Firebase set up, **Sign in with Google** at the top right is on. It gives you a profile with a unique username and keeps your
+games in the cloud. Each slot then says where its game is kept. See [Accounts and cloud saves](Accounts-and-Cloud-Saves.md).
+Without it, you play as a guest and everything stays on this device.
 
 ## In the code
 
@@ -58,6 +59,6 @@ who is playing and whether sign-in is available, so adding it changes that file 
 - `src/render/preview.ts`: the character turntable, with its own small renderer.
 - `src/data/looks.ts`: the colours and hair styles, and `cleanLook`.
 - `src/profile/profile.ts`: the username rules and the profile in `localStorage`.
-- `src/account/account.ts`: the guest account and the place for sign-in.
+- `src/account/account.ts`: who is playing (guest or Google) and sign-in.
 - `src/save/store.ts`: three slots (`slot1`, `slot2`, `slot3`, each with a `.backup`), `listSlots`, `deleteGame`.
 - `src/main.ts`: `showTitle`, `showSlots`, `startSurvivor` and `beginGame(state, isNew, slot)`.

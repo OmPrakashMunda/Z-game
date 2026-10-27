@@ -7,10 +7,29 @@ const DB_NAME = 'zgame';
 const STORE = 'saves';
 /** How many games can be kept side by side. */
 export const SLOT_COUNT = 3;
-const slotKey = (slot: number) => `slot${slot}`;
-const backupKey = (slot: number) => `slot${slot}.backup`;
+/**
+ * Whose games these are. null is the guest on this device; otherwise the id of the signed-in account. Each account keeps its
+ * own copy of the slots in this browser, so two people sharing a browser never see each other's games.
+ */
+let scope: string | null = null;
+export function setSaveScope(next: string | null): void {
+  scope = next;
+}
+const slotKey = (slot: number, s: string | null = scope) => (s ? `u.${s}.slot${slot}` : `slot${slot}`);
+const backupKey = (slot: number, s: string | null = scope) => `${slotKey(slot, s)}.backup`;
 
-interface SaveEnvelope {
+/** A second copy of the slots somewhere else (the cloud). The newest copy of each slot wins. */
+export interface CloudSlots {
+  list(): Promise<Map<number, SaveEnvelope>>;
+  put(slot: number, envelope: SaveEnvelope): Promise<void>;
+  remove(slot: number): Promise<void>;
+}
+let cloud: CloudSlots | null = null;
+export function setCloud(next: CloudSlots | null): void {
+  cloud = next;
+}
+
+export interface SaveEnvelope {
   version: number;
   /** When it was saved, in milliseconds. Informational only. Never used for gameplay time. */
   savedAt: number;
@@ -127,7 +146,7 @@ function migrateOutfit(s: Partial<GameState>, d: GameState): GameState['outfit']
   }
   return out;
 }
-function isValidEnvelope(e: unknown): e is SaveEnvelope {
+export function isValidEnvelope(e: unknown): e is SaveEnvelope {
   if (!e || typeof e !== 'object') return false;
   const env = e as Partial<SaveEnvelope>;
   const s = env.state as Partial<GameState> | undefined;
@@ -141,9 +160,9 @@ function isValidEnvelope(e: unknown): e is SaveEnvelope {
   );
 }
 
-async function readSlot(store: IDBObjectStore, slot: number): Promise<LoadResult> {
-  const current = await request(store.get(slotKey(slot)));
-  const backup = await request(store.get(backupKey(slot)));
+async function readSlot(store: IDBObjectStore, slot: number, s: string | null = scope): Promise<LoadResult> {
+  const current = await request(store.get(slotKey(slot, s)));
+  const backup = await request(store.get(backupKey(slot, s)));
 
   if (current === undefined && backup === undefined) return { status: 'none' };
   if (isValidEnvelope(current)) return { status: 'ok', state: migrate(current), savedAt: num(current.savedAt, 0) };
@@ -161,22 +180,8 @@ async function readSlot(store: IDBObjectStore, slot: number): Promise<LoadResult
   };
 }
 
-export async function loadGame(slot = 1): Promise<LoadResult> {
-  let db: IDBDatabase;
-  try {
-    db = await openDb();
-  } catch (err) {
-    return { status: 'error', message: `Saving is unavailable in this browser: ${String(err)}` };
-  }
-  try {
-    return await readSlot(db.transaction(STORE, 'readonly').objectStore(STORE), slot);
-  } finally {
-    db.close();
-  }
-}
-
-/** What is in each of the save slots, for the slot screen. */
-export async function listSlots(): Promise<Array<{ slot: number; result: LoadResult }>> {
+/** The games kept in this browser for one owner, without looking at the cloud. */
+async function readLocalSlots(s: string | null): Promise<Array<{ slot: number; result: LoadResult }>> {
   let db: IDBDatabase;
   try {
     db = await openDb();
@@ -187,22 +192,25 @@ export async function listSlots(): Promise<Array<{ slot: number; result: LoadRes
   try {
     const store = db.transaction(STORE, 'readonly').objectStore(STORE);
     const out: Array<{ slot: number; result: LoadResult }> = [];
-    for (let slot = 1; slot <= SLOT_COUNT; slot++) out.push({ slot, result: await readSlot(store, slot) });
+    for (let slot = 1; slot <= SLOT_COUNT; slot++) out.push({ slot, result: await readSlot(store, slot, s) });
     return out;
   } finally {
     db.close();
   }
 }
 
-/** Write the save. The previous valid save is kept as a backup. */
-export async function saveGame(state: GameState, slot = 1): Promise<void> {
+export async function loadGame(slot = 1): Promise<LoadResult> {
+  return (await readLocalSlots(scope))[slot - 1].result;
+}
+
+/** Write a save into the browser. The previous valid save is kept as a backup. */
+async function writeLocal(envelope: SaveEnvelope, slot: number): Promise<void> {
   const db = await openDb();
   try {
     const tx = db.transaction(STORE, 'readwrite');
     const store = tx.objectStore(STORE);
     const previous = await request(store.get(slotKey(slot)));
     if (isValidEnvelope(previous)) store.put(previous, backupKey(slot));
-    const envelope: SaveEnvelope = { version: SAVE_VERSION, savedAt: Date.now(), state };
     store.put(envelope, slotKey(slot));
     await new Promise<void>((resolve, reject) => {
       tx.oncomplete = () => resolve();
@@ -214,8 +222,65 @@ export async function saveGame(state: GameState, slot = 1): Promise<void> {
   }
 }
 
-/** Empty a slot, backup included. */
+export type SlotWhere = 'none' | 'device' | 'both' | 'cloud';
+
+/**
+ * What is in each of the save slots, for the slot screen. When there is a cloud copy, the newest copy of each slot wins, and
+ * a newer cloud copy is kept in this browser too. `where` says where the shown game is kept.
+ */
+export async function listSlots(): Promise<Array<{ slot: number; result: LoadResult; where: SlotWhere }>> {
+  const local = await readLocalSlots(scope);
+  if (!cloud) return local.map(({ slot, result }) => ({ slot, result, where: result.status === 'none' ? 'none' : 'device' }));
+
+  let remote: Map<number, SaveEnvelope> | null = null;
+  try {
+    remote = await cloud.list();
+  } catch (err) {
+    console.warn('Could not read the cloud saves', err);
+  }
+  const out: Array<{ slot: number; result: LoadResult; where: SlotWhere }> = [];
+  for (const { slot, result } of local) {
+    const env = remote?.get(slot);
+    const localAt = result.status === 'ok' || result.status === 'recovered' ? result.savedAt : -1;
+    if (isValidEnvelope(env) && env.savedAt > localAt) {
+      // The cloud has a newer game (played on another device): show it and keep a copy here
+      await writeLocal(env, slot).catch((err) => console.warn('Could not cache the cloud save', err));
+      out.push({ slot, result: { status: 'ok', state: migrate(env), savedAt: num(env.savedAt, 0) }, where: 'cloud' });
+    } else if (isValidEnvelope(env) && env.savedAt === localAt) {
+      out.push({ slot, result, where: 'both' });
+    } else if (result.status === 'ok') {
+      // This device is ahead of the cloud: bring the cloud up to date
+      const ahead: SaveEnvelope = { version: SAVE_VERSION, savedAt: result.savedAt, state: result.state };
+      const stored = remote ? await cloud.put(slot, ahead).then(() => true).catch(() => false) : false;
+      out.push({ slot, result, where: stored ? 'both' : 'device' });
+    } else {
+      out.push({ slot, result, where: result.status === 'none' ? 'none' : 'device' });
+    }
+  }
+  return out;
+}
+
+/** What the cloud did with a save. */
+export type CloudOutcome = 'off' | 'ok' | 'failed';
+
+/** Save the game in the browser and, when signed in, in the cloud too. The game is safe on this device even if the cloud fails. */
+export async function saveGame(state: GameState, slot = 1): Promise<{ cloud: CloudOutcome }> {
+  const envelope: SaveEnvelope = { version: SAVE_VERSION, savedAt: Date.now(), state };
+  await writeLocal(envelope, slot);
+  if (!cloud) return { cloud: 'off' };
+  try {
+    await cloud.put(slot, envelope);
+    return { cloud: 'ok' };
+  } catch (err) {
+    console.warn('Could not save to the cloud', err);
+    return { cloud: 'failed' };
+  }
+}
+
+/** Empty a slot, backup included, and take it out of the cloud too. */
 export async function deleteGame(slot: number): Promise<void> {
+  // The cloud first: if it fails, the game must not quietly come back from there
+  if (cloud) await cloud.remove(slot);
   const db = await openDb();
   try {
     const tx = db.transaction(STORE, 'readwrite');
@@ -230,4 +295,26 @@ export async function deleteGame(slot: number): Promise<void> {
   } finally {
     db.close();
   }
+}
+
+/** The games the guest on this device has, for offering them to a new account. */
+export async function listGuestGames(): Promise<Array<{ slot: number; state: GameState }>> {
+  const games: Array<{ slot: number; state: GameState }> = [];
+  for (const { slot, result } of await readLocalSlots(null)) {
+    if (result.status === 'ok' || result.status === 'recovered') games.push({ slot, state: result.state });
+  }
+  return games;
+}
+
+/** Copy a guest game into the signed-in account, if that slot is empty there. Returns whether it was copied. */
+export async function copyGuestGame(slot: number): Promise<boolean> {
+  if (scope === null) return false;
+  const here = (await listSlots())[slot - 1];
+  if (here.result.status !== 'none') return false;
+  const guest = (await readLocalSlots(null))[slot - 1].result;
+  if (guest.status !== 'ok' && guest.status !== 'recovered') return false;
+  const envelope: SaveEnvelope = { version: SAVE_VERSION, savedAt: guest.savedAt, state: guest.state };
+  await writeLocal(envelope, slot);
+  if (cloud) await cloud.put(slot, envelope);
+  return true;
 }

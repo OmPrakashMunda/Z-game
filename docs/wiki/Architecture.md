@@ -68,7 +68,9 @@ src/
   audio/             Web Audio synthesis (no audio files)
   save/store.ts      IndexedDB save slots (three) with a backup copy each, and migration
   profile/           The username and look kept across games (localStorage)
-  account/           Who is playing (a guest today) and where sign-in will plug in
+  account/           Who is playing (guest or Google). account.ts is what the game talks to; firebase-backend.ts is loaded only when Firebase is set up
+firestore.rules      Who may read and write what in Firestore (deploy with the Firebase CLI)
+firebase.json        Firebase CLI settings (rules only)
   director/          Placeholder for the AI events director (later)
 public/sw.js         Service worker: caches game files and pictures
 .kiro/specs/         Requirements, design and tasks

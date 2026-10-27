@@ -100,6 +100,7 @@ The wiki pages live in [`docs/wiki`](docs/wiki/Home.md):
 - [Weather and seasons](docs/wiki/Weather-and-Seasons.md)
 - [Clothing and character](docs/wiki/Clothing-and-Character.md)
 - [The title screen, profiles and save slots](docs/wiki/Title-and-Profiles.md)
+- [Accounts and cloud saves](docs/wiki/Accounts-and-Cloud-Saves.md)
 - [Upkeep and repairs](docs/wiki/Upkeep-and-Repairs.md)
 - [Base Architect](docs/wiki/Base-Architect.md)
 - [Camera and views](docs/wiki/Camera-and-Views.md)
@@ -113,7 +114,9 @@ The requirements, design and task list are in [`.kiro/specs/zombie-base-survival
 ## Saves
 
 The game saves to your browser (IndexedDB) about once a minute, after important actions, and when you leave the tab. There are three save slots.
-Use **Save & exit to title** in the menu to leave cleanly. Saves stay on your computer. Cloud saves are planned.
+Use **Save & exit to title** in the menu to leave cleanly. As a guest, saves stay on your computer. With Firebase set up you can
+sign in with Google and keep your games in the cloud: see [Accounts and cloud saves](docs/wiki/Accounts-and-Cloud-Saves.md)
+(copy `.env.example` to `.env.local` and fill it in).
 
 ## Credits
 

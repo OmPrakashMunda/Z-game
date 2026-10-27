@@ -3,7 +3,7 @@ import {
   type Gender, type Look,
 } from '../data/looks';
 import { CharacterPreview } from '../render/preview';
-import type { LoadResult } from '../save/store';
+import type { LoadResult, SlotWhere } from '../save/store';
 import { dayOf } from '../sim/clock';
 import { usernameProblem, USERNAME_MAX } from '../profile/profile';
 import { el, money } from './dom';
@@ -17,6 +17,8 @@ import { icon } from './icons';
 export interface SlotView {
   slot: number;
   result: LoadResult;
+  /** Where the game is kept, when there is a cloud to keep it in. */
+  where?: SlotWhere;
 }
 
 export interface CharacterResult {
@@ -55,11 +57,18 @@ export class TitleScreen {
     return this.root !== null;
   }
 
+  /** Which screen is showing: 'main', 'slots', 'character', 'settings' and so on, or null. */
+  private shown: string | null = null;
+  get current(): string | null {
+    return this.shown;
+  }
+
   close(): void {
     this.preview?.dispose();
     this.preview = null;
     this.root?.remove();
     this.root = null;
+    this.shown = null;
   }
 
   private mount(kind: string): HTMLElement {
@@ -67,7 +76,16 @@ export class TitleScreen {
     const root = el('div', `title-screen ${kind}`);
     this.host.append(root);
     this.root = root;
+    this.shown = kind;
     return root;
+  }
+
+  /** A short wait, for example while a sign-in comes back. */
+  showBusy(text: string): void {
+    const root = this.mount('busy');
+    const panel = el('div', 'title-panel');
+    panel.append(el('h2', undefined, text));
+    root.append(panel);
   }
 
   // ------------------------------------------------------------ Main menu
@@ -77,12 +95,14 @@ export class TitleScreen {
     gender: Gender;
     look: Look;
     accountLabel: string;
+    signedIn: boolean;
     canSignIn: boolean;
     notice?: string;
     onSingle: () => void;
     onProfile: () => void;
     onSettings: () => void;
     onSignIn: () => void;
+    onSignOut: () => void;
   }): void {
     const root = this.mount('main');
 
@@ -94,19 +114,27 @@ export class TitleScreen {
     avatar.style.background = hex(SHIRT_COLORS[opts.look.shirt]);
     avatar.append(icon(opts.gender === 'female' ? 'Venus' : 'Mars', 20));
     const who = el('span', 'who');
-    who.append(el('span', 'who-name', opts.username), el('span', 'who-sub', `${opts.accountLabel} \u00b7 saves stay on this device`));
+    who.append(el('span', 'who-name', opts.username), el('span', 'who-sub', `${opts.accountLabel} \u00b7 ${opts.signedIn ? 'saves go to the cloud' : 'saves stay on this device'}`));
     chip.append(avatar, who, icon('Pencil', 14));
     chip.addEventListener('click', opts.onProfile);
     const signIn = el('button', 'tool-btn signin-btn');
-    signIn.append(icon(opts.canSignIn ? 'LogIn' : 'CloudOff', 16), el('span', undefined, 'Sign in with Google'));
-    if (!opts.canSignIn) {
-      signIn.disabled = true;
-      signIn.title = 'Sign-in and cloud saves are coming soon';
-      signIn.append(el('span', 'soon', 'Soon'));
+    if (opts.signedIn) {
+      signIn.append(icon('LogOut', 16), el('span', undefined, 'Sign out'));
+      signIn.addEventListener('click', opts.onSignOut);
     } else {
-      signIn.addEventListener('click', opts.onSignIn);
-    }
-    side.append(chip, signIn);
+      signIn.append(icon(opts.canSignIn ? 'LogIn' : 'CloudOff', 16), el('span', undefined, 'Sign in with Google'));
+      if (opts.canSignIn) {
+        signIn.addEventListener('click', () => {
+          signIn.disabled = true;
+          signIn.querySelector('span')!.textContent = 'Signing in...';
+          opts.onSignIn();
+        });
+      } else {
+        signIn.disabled = true;
+        signIn.title = 'Sign-in and cloud saves are not set up';
+        signIn.append(el('span', 'soon', 'Soon'));
+      }
+    }    side.append(chip, signIn);
 
     // The name of the game and the menu, left
     const logo = el('div', 'logo');
@@ -140,6 +168,8 @@ export class TitleScreen {
 
   showSlots(opts: {
     slots: SlotView[];
+    /** True when games are also kept in the cloud, so each card says where its game is. */
+    cloud: boolean;
     onContinue: (slot: number, result: Extract<LoadResult, { state: unknown }>) => void;
     onNew: (slot: number) => void;
     onDelete: (slot: number) => void;
@@ -149,13 +179,13 @@ export class TitleScreen {
     const panel = el('div', 'title-panel wide');
     panel.append(el('h2', undefined, 'Single player'), el('p', 'sub', 'Pick a save slot. Each slot keeps its own game.'));
     const row = el('div', 'slot-row');
-    for (const { slot, result } of opts.slots) row.append(this.slotCard(slot, result, opts));
+    for (const { slot, result, where } of opts.slots) row.append(this.slotCard(slot, result, where ?? 'device', opts));
     const back = iconButton('tool-btn back-btn', 'ArrowLeft', 'Back', opts.onBack);
     panel.append(row, back);
     root.append(panel);
   }
 
-  private slotCard(slot: number, result: LoadResult, opts: Parameters<TitleScreen['showSlots']>[0]): HTMLElement {
+  private slotCard(slot: number, result: LoadResult, where: SlotWhere, opts: Parameters<TitleScreen['showSlots']>[0]): HTMLElement {
     const card = el('div', 'slot');
     card.dataset.slot = String(slot);
     card.dataset.status = result.status;
@@ -203,6 +233,12 @@ export class TitleScreen {
       const day = dayOf(s.worldSeconds);
       const phase = s.phase === 'prep' ? `Day ${day} of 30` : `Day ${day}, outbreak`;
       body.append(who, el('div', 'slot-line', phase), el('div', 'slot-line', money(s.money)), el('div', 'sub', `Saved ${ago(result.savedAt)}`));
+      if (opts.cloud) {
+        const safe = where === 'both' || where === 'cloud';
+        const note = el('div', safe ? 'slot-where' : 'slot-where off');
+        note.append(icon(safe ? 'Cloud' : 'CloudOff', 14), el('span', undefined, safe ? 'Saved to the cloud' : 'On this device only'));
+        body.append(note);
+      }
       if (result.status === 'recovered') body.append(el('div', 'slot-line warn', result.message));
       const go = el('button', 'btn', 'Continue');
       go.addEventListener('click', () => opts.onContinue(slot, result));
@@ -223,8 +259,14 @@ export class TitleScreen {
     name: string;
     gender: Gender;
     look: Look;
-    onDone: (result: CharacterResult) => void;
+    /**
+     * Called when the player is done. It may take a while (talking to the cloud): return a promise that gives an error message
+     * to keep the screen open and show it, or null when all went well. The caller moves on to the next screen.
+     */
+    onDone: (result: CharacterResult) => void | Promise<string | null>;
     onBack?: () => void;
+    /** A problem to show straight away, for example that the username is taken. */
+    error?: string;
   }): void {
     const root = this.mount('character');
     const survivor = opts.mode === 'survivor';
@@ -324,6 +366,7 @@ export class TitleScreen {
     };
 
     const finish = () => {
+      if (done.disabled) return;
       let name = input.value.trim();
       if (survivor) {
         name = name.slice(0, 20) || randomName();
@@ -335,8 +378,19 @@ export class TitleScreen {
           return;
         }
       }
-      this.close();
-      opts.onDone({ name, gender, look });
+      const out = opts.onDone({ name, gender, look });
+      if (out instanceof Promise) {
+        done.disabled = true;
+        const label = done.textContent;
+        done.textContent = 'Please wait...';
+        void out.then((message) => {
+          if (!message || !done.isConnected) return;
+          error.textContent = message;
+          done.disabled = false;
+          done.textContent = label;
+          input.focus();
+        });
+      }
     };
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') finish();
@@ -380,9 +434,36 @@ export class TitleScreen {
     const panel = el('div', 'title-panel wide');
     panel.append(el('h2', undefined, heading), el('p', 'sub', intro), grid, btns);
     root.append(panel);
+    if (opts.error) error.textContent = opts.error;
     refresh();
     input.focus();
     input.select();
+  }
+
+  // ------------------------------------------------------------ Guest games
+
+  /** Right after a first sign-in: offer to move the games played as a guest into the account. */
+  showGuestGames(opts: { games: Array<{ slot: number; name: string; day: number }>; onCopy: () => void; onSkip: () => void }): void {
+    const root = this.mount('guest-games');
+    const panel = el('div', 'title-panel');
+    panel.append(
+      el('h2', undefined, 'Your guest games'),
+      el('p', 'sub', 'You have games saved on this device from before you signed in. Copy them to your account to keep them in the cloud.'),
+    );
+    const list = el('ul', 'guest-list');
+    for (const g of opts.games) list.append(el('li', undefined, `Slot ${g.slot}: ${g.name}, day ${g.day}`));
+    const copy = el('button', 'btn', 'Copy to my account');
+    copy.addEventListener('click', () => {
+      copy.disabled = true;
+      copy.textContent = 'Copying...';
+      opts.onCopy();
+    });
+    const skip = el('button', 'btn secondary', 'Not now');
+    skip.addEventListener('click', opts.onSkip);
+    const btns = el('div', 'btn-row');
+    btns.append(copy, skip);
+    panel.append(list, el('p', 'sub', 'A slot that already has a game in your account is left alone. Your guest games stay on this device either way.'), btns);
+    root.append(panel);
   }
 
   // ------------------------------------------------------------ Settings

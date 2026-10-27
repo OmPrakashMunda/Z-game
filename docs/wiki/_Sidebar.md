@@ -3,6 +3,7 @@
 - [Home](Home.md)
 - [Getting started](Getting-Started.md)
 - [Title screen and profiles](Title-and-Profiles.md)
+- [Accounts and cloud saves](Accounts-and-Cloud-Saves.md)
 - [Controls](Controls.md)
 - [Gameplay guide](Gameplay-Guide.md)
 - [The world and walking](World-and-Walking.md)

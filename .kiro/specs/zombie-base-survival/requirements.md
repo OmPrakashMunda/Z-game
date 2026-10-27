@@ -227,6 +227,18 @@ This spec covers the first playable version (milestones M0–M7). Cloud saves, t
 5. Starting a new game SHALL open a survivor screen, filled in from the profile, with a turntable that shows the chosen look and can be turned by dragging. The survivor's name and look SHALL be saved with the game and shown on the walking character.
 6. Who is playing and whether sign-in is available SHALL come from one account interface, so that sign-in and cloud saves can be added without changing the screens.
 
+### Requirement 17: Accounts and cloud saves
+
+**User Story:** As a player, I want to sign in so that my name is mine and my games follow me to any device, without having to sign in to play.
+
+#### Acceptance Criteria
+1. The system SHALL let the player sign in with Google when Firebase is configured, and SHALL otherwise keep playing as a guest with saves on the device. Sign-in SHALL be switched off cleanly (greyed out) when it is not configured.
+2. A signed-in account SHALL have a profile with a username that no other account has, ignoring letters' case and the difference between spaces and underscores. IF the username is taken THEN the system SHALL ask for another one and SHALL NOT sign the player in with a clashing name.
+3. A signed-in account's games SHALL be kept in the cloud as well as in the browser. The newest copy of each slot SHALL win, a failed cloud save SHALL be reported without losing the game on the device, and deleting a game SHALL remove its cloud copy.
+4. Each account (and the guest) SHALL have its own slots in the browser, so people who share a browser do not see each other's games. After a first sign-in the system SHALL offer to copy the guest's games into the account, once.
+5. The security rules SHALL let a signed-in account read and write only its own profile and three save slots, SHALL let it reserve usernames only for itself, and SHALL give a signed-out visitor no access.
+6. The Firebase settings SHALL be read from environment variables and SHALL NOT be committed. The tests SHALL run as a guest whatever those settings are.
+
 ### Requirement 13: Performance and robustness
 
 **User Story:** As a player, I want the game to run smoothly and fail gracefully.

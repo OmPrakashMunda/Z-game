@@ -29,6 +29,8 @@ $shots = if ($env:SHOTS_DIR) { $env:SHOTS_DIR } else { "$here\shots" }
 New-Item -ItemType Directory -Force -Path $shots | Out-Null
 $env:SHOTS_DIR = $shots
 $env:PORT = "$Port"
+# The tests run as a guest, offline: switch Firebase off whatever .env.local says
+$env:VITE_FIREBASE_DISABLED = '1'
 
 $vite = Start-Process -FilePath 'node' -ArgumentList "node_modules\vite\bin\vite.js --port $Port --strictPort" `
   -WorkingDirectory $root -PassThru -WindowStyle Hidden

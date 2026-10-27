@@ -24,6 +24,7 @@ The full requirements, design and task list are in `.kiro/specs/zombie-base-surv
 - **Seasons and weather.** Four 20-day seasons, rain, snow, thunderstorms with lightning, heatwaves and cold snaps, painted over the whole screen. Out in the open they cost health.
 - **Clothes and a character.** A name and gender at the start; 18 clothes in five slots with warmth and dryness.
 - **A title screen with profiles and save slots.** A welcome screen for the username and look, a main menu over the live town, three save slots, a survivor screen with a 3D turntable, and a guest account.
+- **Accounts and cloud saves.** Sign in with Google (Firebase Auth), unique usernames, and games kept in the cloud (Firestore) with this browser as a cache; the newest save of each slot wins. Guests keep playing with local saves and can copy their games into an account.
 - **Light at night.** Powered lamps, floodlights and fires light the ground around them.
 - **Product sheets** for every product, and thumbnails cached in the browser.
 
@@ -39,10 +40,9 @@ The full requirements, design and task list are in `.kiro/specs/zombie-base-surv
 ## Later
 
 - **The AI events director.** A language model that writes news, radio and events within a schema the game validates.
-- **Cloud saves.**
+- **Hosting and account care.** Firebase Hosting for the game itself, deleting an account and its data from inside the game, and App Check.
 - **People who live at the base.** Cabins and beds would add people, who would add needs and jobs.
 - **Fatigue and sleep, hygiene and illness.** The fields exist; the rules do not.
-- **Accounts and cloud saves.** Sign in with Google (Firebase Auth), saves in the cloud (Firestore) with the local copy as a cache, unique usernames. The title screen and the account interface (`src/account/account.ts`) are ready for it; the Firebase project and keys are the missing part.
 - **Maps and multiplayer servers.** Several maps, and servers where people play together. Not started. What is already in place:
   the world is generated from a seed in chunks (the same coordinates always give the same chunk), the weather is a pure
   function of the seed and the clock, and the rules in sim do not touch the screen. A server would run sim as the one

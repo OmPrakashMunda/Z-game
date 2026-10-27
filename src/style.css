@@ -712,3 +712,6 @@ input.qty::-webkit-inner-spin-button { display: none; }
   .title-user { position: static; align-items: flex-start; padding: 12px 6vw 0; }
   .title-screen.main { flex-direction: column; }
 }
+.slot-where { display: flex; align-items: center; gap: 6px; margin-top: 4px; font: 500 13px var(--font-ui); color: #8fd18f; }
+.slot-where.off { color: var(--dim); }
+.guest-list { margin: 10px 0 8px; padding-left: 20px; font-size: 16px; line-height: 1.7; }

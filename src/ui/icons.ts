@@ -9,7 +9,7 @@ import {
   Menu, Mountain, Newspaper, Nut, Package, Pill, Pipette, PlugZap, Ruler, Scroll, Shield, ShieldCheck, Shovel, Soup, Sprout,
   Stethoscope, Sun, Sword, Target, Trash2, TrendingUp, Triangle, Truck, Utensils, Waves, Weight, Wheat, Wrench, X, Zap,
   ChevronDown, ChevronUp, Circle, CircleCheck, Heart, ListChecks, TriangleAlert, CalendarDays, Coins, Info, ChevronLeft, Hourglass, Play, FastForward, ChevronsRight, Undo2, DraftingCompass, Move, Compass, RotateCcw, ArrowUp, ArrowRight, ArrowDown, ArrowLeft,
-  Users, Settings, LogIn, CloudOff, Gamepad2, UserRound, Pencil, Dices,
+  Users, Settings, LogIn, LogOut, CloudOff, Gamepad2, UserRound, Pencil, Dices,
   createElement,
 } from 'lucide';
 import { CATEGORIES, ITEMS, type ItemDef } from '../data/items';
@@ -26,7 +26,7 @@ const REGISTRY = {
   Menu, Mountain, Newspaper, Nut, Package, Pill, Pipette, PlugZap, Ruler, Scroll, Shield, ShieldCheck, Shovel, Soup, Sprout,
   Stethoscope, Sun, Sword, Target, Trash2, TrendingUp, Triangle, Truck, Utensils, Waves, Weight, Wheat, Wrench, X, Zap,
   ChevronDown, ChevronUp, Circle, CircleCheck, Heart, ListChecks, TriangleAlert, CalendarDays, Coins, Info, ChevronLeft, Hourglass, Play, FastForward, ChevronsRight, Undo2, DraftingCompass, Move, Compass, RotateCcw, ArrowUp, ArrowRight, ArrowDown, ArrowLeft,
-  Users, Settings, LogIn, CloudOff, Gamepad2, UserRound, Pencil, Dices,
+  Users, Settings, LogIn, LogOut, CloudOff, Gamepad2, UserRound, Pencil, Dices,
 };
 
 export type IconName = keyof typeof REGISTRY;

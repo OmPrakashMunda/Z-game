@@ -146,8 +146,8 @@ Each top-level task is a milestone that ends with something playable.
     - _Requirements: 16.2, 16.3, 16.5_
   - [x] 5c.5 Move the browser tests to the real title flow (helpers.mjs) and add title.mjs
     - _Requirements: 16.1-16.6_
-  - [ ] 5c.6 Sign in with Google and cloud saves (needs a Firebase project)
-    - _Requirements: 16.6_
+  - [x] 5c.6 Sign in with Google, unique usernames and cloud saves on Firebase, with guest play and local saves kept
+    - _Requirements: 17.1-17.6_
 
 - [x] 6. M5: Survival and production
   - [x] 6.1 Implement thirst, hunger and health with the move-in supplies, daily use, and starvation (fatigue and sleeping left for later)

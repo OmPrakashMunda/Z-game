@@ -1,0 +1,45 @@
+rules_version = '2';
+
+// Who can read and write what. Everything is closed unless a rule below opens it.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // A player's profile. Only the owner can read or change it.
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['username', 'usernameKey', 'gender', 'look', 'updatedAt'])
+        && request.resource.data.username is string
+        && request.resource.data.username.size() >= 3
+        && request.resource.data.username.size() <= 16
+        && request.resource.data.usernameKey.matches('^[a-z0-9][a-z0-9_-]{2,15}$')
+        && request.resource.data.gender in ['male', 'female']
+        && request.resource.data.look is map;
+      allow delete: if signedIn() && request.auth.uid == uid;
+
+      // Saved games: three slots, each one compressed document. Firestore itself caps a document at 1 MiB.
+      match /saves/{slot} {
+        allow read, delete: if signedIn() && request.auth.uid == uid && slot in ['slot1', 'slot2', 'slot3'];
+        allow create, update: if signedIn() && request.auth.uid == uid && slot in ['slot1', 'slot2', 'slot3']
+          && request.resource.data.keys().hasOnly(['version', 'savedAt', 'data'])
+          && request.resource.data.version is number
+          && request.resource.data.savedAt is number
+          && request.resource.data.data is bytes;
+      }
+    }
+
+    // Username reservations make names unique. A name belongs to the account that claimed it.
+    match /usernames/{key} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.keys().hasOnly(['uid'])
+        && request.resource.data.uid == request.auth.uid
+        && key.matches('^[a-z0-9][a-z0-9_-]{2,15}$');
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+      allow update: if false;
+    }
+  }
+}
