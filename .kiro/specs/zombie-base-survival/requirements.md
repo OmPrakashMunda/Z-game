@@ -250,6 +250,18 @@ This spec covers the first playable version (milestones M0–M7). Cloud saves, t
 4. IF a vehicle is inside a tree, a wall or a structure when the player gets in, THEN the system SHALL set it down on the nearest clear ground and tell the player. A vehicle that still overlaps something SHALL be able to drive out of it without crash damage, and SHALL NOT be able to go deeper in.
 5. Getting into a vehicle SHALL bring the view to it, and the view SHALL follow the vehicle while it drives, even if the view had been dragged away.
 
+### Requirement 19: Co-op multiplayer
+
+**User Story:** As a player, I want to share a world and a base with up to three friends, so that we can survive together.
+
+#### Acceptance Criteria
+1. Every action a player can take on the world (ordering, buying and expanding land, building, moving and taking down pieces, upkeep, the architect, clothes, vehicles, cargo, searching houses) SHALL be expressible as a plain-data command, and the game SHALL carry it out through one function that a server can also call.
+2. The simulation SHALL run in plain Node without a browser or graphics context.
+3. A server SHALL own the one shared world, run the simulation, and be the only place where commands take effect. A client SHALL NOT be able to send a plan, a price or a result of its own.
+4. Up to four players SHALL be able to share a world. Money, storage, structures, land, vehicles, time and weather SHALL be shared; position, pack, outfit and the vehicle being driven SHALL belong to each player.
+5. Single-player and guest play SHALL keep working at every step.
+6. Cheats and fast-forward SHALL NOT apply in a shared world.
+
 ### Requirement 13: Performance and robustness
 
 **User Story:** As a player, I want the game to run smoothly and fail gracefully.

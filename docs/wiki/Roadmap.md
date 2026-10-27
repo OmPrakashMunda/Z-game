@@ -43,7 +43,8 @@ The full requirements, design and task list are in `.kiro/specs/zombie-base-surv
 - **Hosting and account care.** Firebase Hosting for the game itself, deleting an account and its data from inside the game, and App Check.
 - **People who live at the base.** Cabins and beds would add people, who would add needs and jobs.
 - **Fatigue and sleep, hygiene and illness.** The fields exist; the rules do not.
-- **Maps and multiplayer servers.** Several maps, and servers where people play together. Not started. What is already in place:
+- **Maps and multiplayer servers.** Several maps, and servers where up to four people play together. In progress: the plan and
+  the state of each step are on the [Multiplayer design](Multiplayer-Design.md) page, and step 1 (every action as a command) is done. What is in place:
   the world is generated from a seed in chunks (the same coordinates always give the same chunk), the weather is a pure
   function of the seed and the clock, and the rules in sim do not touch the screen. A server would run sim as the one
   authority and send each player the chunks and changes near them, and the browser would become a client that sends

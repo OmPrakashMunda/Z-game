@@ -23,4 +23,5 @@
 
 - [Architecture](Architecture.md)
 - [Testing](Testing.md)
+- [Multiplayer design](Multiplayer-Design.md)
 - [Roadmap](Roadmap.md)

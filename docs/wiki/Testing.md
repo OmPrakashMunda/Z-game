@@ -4,6 +4,10 @@ The game is tested in a real browser. The scripts in `tests/e2e` open the dev se
 like a player, and also call the simulation directly through the dev hooks (`window.__game`). They are plain Node scripts
 that print `PASS` or `FAIL` per check.
 
+## Headless test
+
+`npm run test:headless` runs `tests/headless/smoke.ts` with `tsx`. It starts a game, runs commands through `applyCommand`, steps the clock and round-trips the state through JSON, all in plain Node. It is quick, and it fails if a rule starts to need the browser. The server will depend on this.
+
 ## Running
 
 ```

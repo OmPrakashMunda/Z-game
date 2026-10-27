@@ -161,6 +161,20 @@ Each top-level task is a milestone that ends with something playable.
   - [x] 5d.5 Browser tests: gamepad.mjs with a fake controller, and new checks in vehicles.mjs
     - _Requirements: 18.1-18.5_
 
+- [ ] 5e. Co-op multiplayer (up to 4 players)
+  - [x] 5e.1 Turn player actions into commands (`sim/commands.ts`) and run the game's handlers through `applyCommand`
+    - _Requirements: 19.1, 19.5_
+  - [x] 5e.2 A headless Node smoke test (`npm run test:headless`)
+    - _Requirements: 19.2_
+  - [ ] 5e.3 A per-player record and the view swap; move place, walking and driving rules from `main.ts` into `sim`; a vehicle `driver`
+    - _Requirements: 19.4_
+  - [ ] 5e.4 A Node server that owns the shared world and steps it; the protocol (commands, input frames, snapshots)
+    - _Requirements: 19.3, 19.4_
+  - [ ] 5e.5 A client mode that sends commands and input and draws other players; a Multiplayer entry in the title menu
+    - _Requirements: 19.3, 19.5, 19.6_
+  - [ ] 5e.6 Rooms, invites, ID-token checks and server-side saves
+  - [ ] 5e.7 Deploy on the VPS with TLS, a process manager and backups
+
 - [x] 6. M5: Survival and production
   - [x] 6.1 Implement thirst, hunger and health with the move-in supplies, daily use, and starvation (fatigue and sleeping left for later)
     - _Requirements: 8.1, 8.2, 8.3_

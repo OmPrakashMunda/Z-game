@@ -27,18 +27,18 @@ import { SHIRT_COLORS, SKIN_TONES } from './data/looks';
 import { advise, type Advice, type AdviceAction } from './sim/advisor';
 import { dayOf, dayPart, formatClock, hourOf, worldSecondsAt } from './sim/clock';
 import {
-  edgeAnchor, edgePieceNear, edgePostFlags, gridOf, linksAt, occupiedCells, pieceAt, pieceCenter, placePiece, placementProblem, removePiece,
+  edgeAnchor, edgePieceNear, edgePostFlags, gridOf, linksAt, occupiedCells, pieceAt, pieceCenter, placePiece, placementProblem,
   type Grid,
 } from './sim/build';
-import { expandPlot, ownedRect, plotOf, stripFor, type Side } from './sim/land';
-import { grantFunds, placeOrder, returnItems, SANDBOX_FUNDS, type Cart } from './sim/economy';
+import { ownedRect, plotOf, stripFor, type Side } from './sim/land';
+import { grantFunds, SANDBOX_FUNDS, type Cart } from './sim/economy';
 import { buildPlan, planBase } from './sim/architect';
 import { activeCheats, resetCheatSession, runCheatCode, type WeatherMode } from './cheats';
-import { finishAllConstruction, movePiece, relocationProblem, rotatePiece } from './sim/build';
-import { cleanPiece, conditionIssue, repairPiece, upgradePiece } from './sim/upkeep';
-import { buyPlot } from './sim/realty';
+import { finishAllConstruction, relocationProblem } from './sim/build';
+import { conditionIssue } from './sim/upkeep';
 import { createNewGame, type GameState, type PlaceId, type Piece } from './sim/state';
 import { stepSim } from './sim/step';
+import { applyCommand } from './sim/commands';
 import { flushSurvival, summarize } from './sim/survival';
 import { runtimeOf, topologyOf } from './sim/utilities';
 import type { IssueKind } from './data/survival';
@@ -54,13 +54,13 @@ import { exposureNow, lightningStrike } from './sim/exposure';
 import { takeOff as takeOffItem, wear as wearItem } from './sim/outfit';
 import type { Slot } from './data/clothing';
 import { CargoPanel } from './ui/cargo-panel';
-import { describeGoods, loadFromStorage, loadWeight, packWeight, unloadPack, unloadToStorage } from './sim/cargo';
-import { activeSearch, cancelSearch, DOOR_REACH, doorOf, houseAtDoor, houseState, startSearch, takeLeftovers, takeSearchResults } from './sim/loot';
+import { describeGoods, loadWeight, packWeight, unloadPack } from './sim/cargo';
+import { activeSearch, DOOR_REACH, doorOf, houseAtDoor, houseState, takeSearchResults } from './sim/loot';
 import { PACK_KG } from './data/weights';
 import { ATTACHMENT_LIST, effective, VEHICLES, type VehicleId } from './data/vehicles';
 import {
-  addVehicle, atPump, condition, drivenVehicle, driveStep, enterVehicle, exitVehicle, fitPart, fitProblem, FUEL_ITEM, onHand, parkingSpot, pumpPrice,
-  moveTrailer, refuelAtPump, refuelFromCans, removePart, repairVehicle, tankSize, topSpeedOn, surfaceAt, vehicleNear, type OwnedVehicle,
+  addVehicle, atPump, condition, drivenVehicle, driveStep, fitProblem, FUEL_ITEM, onHand, parkingSpot, pumpPrice,
+  moveTrailer, tankSize, topSpeedOn, surfaceAt, vehicleNear, type OwnedVehicle,
 } from './sim/vehicles';
 import { PiecePanel } from './ui/piece-panel';
 import { PlacingBar } from './ui/placing-bar';
@@ -939,13 +939,13 @@ function enterNearest(): boolean {
 
 function startDriving(id: number): boolean {
   if (!state) return false;
-  const result = enterVehicle(state, id);
+  const result = applyCommand(state, { type: 'enterVehicle', vehicleId: id });
   if (!result.ok) {
     ui.toast(result.reason);
     return false;
   }
   if (build) stopPlacing(false);
-  cancelSearch(state);
+  applyCommand(state, { type: 'cancelSearch' });
   select(null);
   shop.close();
   realty.close();
@@ -961,7 +961,7 @@ function startDriving(id: number): boolean {
 
 function stopDriving(): void {
   if (!state) return;
-  const result = exitVehicle(state);
+  const result = applyCommand(state, { type: 'exitVehicle' });
   if (!result.ok) {
     ui.toast(result.reason);
     return;
@@ -1083,32 +1083,13 @@ function vehicleJob(job: string, id: number): void {
   if (!state) return;
   const v = state.vehicles.find((x) => x.id === id);
   if (!v) return;
-  let message: string | null = null;
-  let failure: string | null = null;
-  if (job === 'cans') {
-    const r = refuelFromCans(state, v);
-    if (r.ok) message = `Added ${Math.round(r.liters)} L of fuel.`;
-    else failure = r.reason;
-  } else if (job === 'pump') {
-    const r = refuelAtPump(state, v);
-    if (r.ok) message = `Added ${Math.round(r.liters)} L for ${money(r.cost)}.`;
-    else failure = r.reason;
-  } else if (job === 'repair') {
-    const r = repairVehicle(state, v);
-    if (r.ok) message = `Repaired ${Math.round(r.restored)} hit points${r.used ? ` with ${r.used} spare part${r.used === 1 ? '' : 's'}` : ''}.`;
-    else failure = r.reason;
-  } else if (job.startsWith('fit:') || job.startsWith('remove:')) {
-    const part = job.split(':')[1] as Parameters<typeof fitPart>[2];
-    const r = job.startsWith('fit:') ? fitPart(state, v, part) : removePart(state, v, part);
-    if (r.ok) message = job.startsWith('fit:') ? 'Fitted.' : 'Removed. It is back in your storage.';
-    else failure = r.reason;
-  }
-  if (failure) {
-    ui.toast(failure);
+  const result = applyCommand(state, { type: 'vehicleJob', job, vehicleId: id });
+  if (!result.ok) {
+    ui.toast(result.reason);
     audio.error();
     return;
   }
-  if (message) ui.toast(message, 'info');
+  ui.toast(result.message, 'info');
   audio.buy();
   gfx.syncVehicles(state.vehicles);
   if (selected) refreshPlacePanel();
@@ -1123,12 +1104,12 @@ function interactHouse(): boolean {
   if (activeSearch(state)) return true;
   const st = houseState(state, h.id);
   if (st === 'fresh') {
-    const r = startSearch(state, h.id);
+    const r = applyCommand(state, { type: 'search', houseId: h.id });
     if (!r.ok) ui.toast(r.reason);
     return true;
   }
   if (st === 'leftovers') {
-    const r = takeLeftovers(state, h.id);
+    const r = applyCommand(state, { type: 'takeLeftovers', houseId: h.id });
     if (r && Object.keys(r.took).length > 0) {
       ui.toast(`Took ${describeGoods(r.took)}.${Object.keys(r.left).length ? ' Some of it still does not fit.' : ''}`, 'info');
       audio.buy();
@@ -1151,19 +1132,15 @@ function watchSearch(): void {
   const door = h ? doorOf(h) : null;
   const gone = !door || Math.hypot(door.x - state.pos.x, door.z - state.pos.z) > DOOR_REACH + 1.5;
   if (gone || walkSpeed > 0.3 || state.driving !== null) {
-    cancelSearch(state);
+    applyCommand(state, { type: 'cancelSearch' });
     ui.toast('Search stopped.');
   }
 }
 
 function cargoMove(kind: 'load' | 'unload' | 'all', id: number, item: string, n: number): void {
   if (!state) return;
-  const v = state.vehicles.find((x) => x.id === id);
-  if (!v) return;
-  let moved = 0;
-  if (kind === 'load') moved = loadFromStorage(state, v, item, n);
-  else if (kind === 'unload') moved = unloadToStorage(state, v, item, n);
-  else for (const [it, q] of Object.entries({ ...v.cargo })) moved += unloadToStorage(state, v, it, q);
+  if (!state.vehicles.some((x) => x.id === id)) return;
+  const { moved } = applyCommand(state, { type: 'cargo', kind, vehicleId: id, item, qty: n });
   if (moved === 0) {
     ui.toast(state.at === 'base' ? 'Nothing could be moved.' : 'Park at your base to load and unload.');
     audio.error();
@@ -1247,7 +1224,7 @@ function landOf(s: GameState): ReturnType<typeof ownedRect> | undefined {
 
 function handleExpand(side: Side): void {
   if (!state) return;
-  const result = expandPlot(state, side);
+  const result = applyCommand(state, { type: 'expand', side });
   if (!result.ok) {
     ui.toast(result.reason);
     return;
@@ -1356,7 +1333,7 @@ function weatherIconFor(w: Weather, part: string): string {
 
 function handleWear(id: string): void {
   if (!state) return;
-  const r = wearItem(state, id);
+  const r = applyCommand(state, { type: 'wear', item: id });
   if (!r.ok) {
     ui.toast(r.reason);
     audio.error();
@@ -1369,7 +1346,7 @@ function handleWear(id: string): void {
 
 function handleTakeOff(slot: Slot): void {
   if (!state) return;
-  const r = takeOffItem(state, slot);
+  const r = applyCommand(state, { type: 'takeOff', slot });
   if (!r.ok) {
     ui.toast(r.reason);
     return;
@@ -1426,7 +1403,7 @@ function runCheat(raw: string): string {
 }
 function handleFunds(): void {
   if (!state) return;
-  grantFunds(state);
+  applyCommand(state, { type: 'funds' });
   ui.toast(`Sandbox funds added: ${money(SANDBOX_FUNDS)}.`, 'info');
   audio.buy();
   architect.refresh(true);
@@ -1441,15 +1418,10 @@ function handleArchitectBuild(): void {
     ui.toast('Walk to your base to build the upgrade. A waypoint marks the way.');
     return;
   }
-  const plan = planBase(state);
-  if (!plan) {
-    ui.toast('The shops have closed.');
-    return;
-  }
-  const result = buildPlan(state, plan);
+  const result = applyCommand(state, { type: 'architect' });
   if (!result.ok) {
     ui.toast(result.reason);
-    audio.error();
+    if (state.phase === 'prep') audio.error();
     return;
   }
   if (result.landBought > 0) {
@@ -1637,7 +1609,7 @@ function afterBuildChange(): void {
 function tryPlace(cx: number, cz: number, rot = build?.rot ?? 0): boolean {
   if (!state || !build?.type) return false;
   if (build.moving !== undefined) {
-    const result = movePiece(state, build.moving, cx, cz, rot);
+    const result = applyCommand(state, { type: 'move', id: build.moving, cx, cz, rot });
     if (!result.ok) {
       placingBar.setStatus(result.reason, true);
       return false;
@@ -1649,7 +1621,7 @@ function tryPlace(cx: number, cz: number, rot = build?.rot ?? 0): boolean {
     stopPlacing();
     return true;
   }
-  const result = placePiece(state, build.type, cx, cz, rot);
+  const result = applyCommand(state, { type: 'place', piece: build.type, cx, cz, rot });
   if (!result.ok) {
     placingBar.setStatus(result.reason, true);
     return false;
@@ -1663,7 +1635,7 @@ function tryPlace(cx: number, cz: number, rot = build?.rot ?? 0): boolean {
 
 function takeDown(pieceId: number): void {
   if (!state) return;
-  const result = removePiece(state, pieceId);
+  const result = applyCommand(state, { type: 'remove', id: pieceId });
   if (!result.ok) {
     ui.toast(result.reason);
     return;
@@ -1781,7 +1753,7 @@ function rotatePlaced(id?: number): void {
   if (!state) return;
   const target = id ?? selectedPiece()?.id;
   if (target === undefined) return;
-  const result = rotatePiece(state, target);
+  const result = applyCommand(state, { type: 'rotate', id: target });
   if (!result.ok) {
     ui.toast(result.reason);
     audio.error();
@@ -1810,7 +1782,7 @@ function takeDownSelected(id: number): void {
 
 function doWork(kind: 'repair' | 'upgrade' | 'clean', id: number): void {
   if (!state) return;
-  const result = kind === 'repair' ? repairPiece(state, id) : kind === 'upgrade' ? upgradePiece(state, id) : cleanPiece(state, id);
+  const result = applyCommand(state, { type: 'work', job: kind, id });
   if (!result.ok) {
     ui.toast(result.reason);
     audio.error();
@@ -1829,7 +1801,7 @@ function schedulePersist(): void {
 // ---------------------------------------------------------------- Player actions
 
 function handleOrder(storeId: StoreId, cart: Cart) {
-  const result = placeOrder(state!, storeId, cart);
+  const result = applyCommand(state!, { type: 'order', storeId, cart });
   if (result.ok) {
     const car = result.vehicles[0];
     if (car) {
@@ -1849,7 +1821,7 @@ function handleOrder(storeId: StoreId, cart: Cart) {
 }
 
 function handleBuyPlot(plotId: PlotId): boolean {
-  const result = buyPlot(state!, plotId);
+  const result = applyCommand(state!, { type: 'buyPlot', plotId });
   if (!result.ok) {
     ui.toast(result.reason);
     return false;
@@ -1921,7 +1893,7 @@ function slowDownIfNeeded(s: GameState): void {
 
 function handleReturn(itemId: string, qty: number): void {
   if (!state) return;
-  const result = returnItems(state, itemId, qty);
+  const result = applyCommand(state, { type: 'returnItems', itemId, qty });
   if (!result.ok) {
     ui.toast(result.reason);
     audio.error();

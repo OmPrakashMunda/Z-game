@@ -27,6 +27,7 @@ src/
     info.ts            Product sheet text, derived from the tables above
   sim/               The game rules. Pure functions on a plain-object GameState; no DOM, no Three.js
     state.ts           GameState and the save version
+    commands.ts        Every player action as a plain-data command, and applyCommand to run it (see Multiplayer design)
     clock.ts           Day, hour, daylight
     step.ts            One simulation step: restock, build, wear, survive, deliver, outbreak
     economy.ts         Prices, panic, stock, orders, returns, sandbox funds

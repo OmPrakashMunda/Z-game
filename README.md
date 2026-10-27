@@ -28,6 +28,7 @@ Other commands:
 | `npm run build` | Typecheck and make a production build in `dist/` |
 | `npm run preview` | Serve the production build |
 | `npm run typecheck` | Typecheck only |
+| `npm run test:headless` | Run the game rules in plain Node, with no browser |
 
 The world clock runs at `VITE_TIME_SCALE` game seconds per real second (default `24`, so one game day takes one real
 hour). Change it in `.env` and restart `npm run dev`. You can also fast-forward in the game with the 4x and 12x buttons.
@@ -91,6 +92,7 @@ The wiki pages live in [`docs/wiki`](docs/wiki/Home.md):
 
 - [Getting started](docs/wiki/Getting-Started.md)
 - [Controls](docs/wiki/Controls.md)
+- [Multiplayer design](docs/wiki/Multiplayer-Design.md)
 - [Gameplay guide](docs/wiki/Gameplay-Guide.md)
 - [The world and walking](docs/wiki/World-and-Walking.md)
 - [Vehicles](docs/wiki/Vehicles.md)
